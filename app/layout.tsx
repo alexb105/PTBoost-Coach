@@ -5,6 +5,7 @@ import { Analytics } from "@vercel/analytics/next"
 import { NavigationWrapper } from "@/components/navigation-wrapper"
 import { Toaster } from "@/components/ui/sonner"
 import { LanguageProvider } from "@/contexts/language-context"
+import { BrandingProvider } from "@/contexts/branding-context"
 import "./globals.css"
 
 const _geist = Geist({ subsets: ["latin"] })
@@ -41,12 +42,14 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`font-sans antialiased`}>
-        <LanguageProvider>
-          {children}
-          <NavigationWrapper />
-          <Analytics />
-          <Toaster />
-        </LanguageProvider>
+        <BrandingProvider>
+          <LanguageProvider>
+            {children}
+            <NavigationWrapper />
+            <Analytics />
+            <Toaster />
+          </LanguageProvider>
+        </BrandingProvider>
       </body>
     </html>
   )

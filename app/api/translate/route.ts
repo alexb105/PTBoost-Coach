@@ -66,10 +66,16 @@ export async function POST(request: NextRequest) {
       }
     } catch (translateError: any) {
       // Handle rate limiting and other errors gracefully
-      if (translateError.message?.includes('429') || translateError.message?.includes('rate limit')) {
-        console.warn('Translation rate limit exceeded, using original text')
+      const errorMessage = translateError.message || String(translateError)
+      if (errorMessage.includes('429') || 
+          errorMessage.includes('rate limit') || 
+          errorMessage.includes('Too Many Requests')) {
+        // Silently handle rate limiting - don't log as it's expected behavior
+        // Return original text on rate limit
+        return NextResponse.json({ translatedText: text })
       } else {
-        console.warn('Translation request failed:', translateError.message || translateError)
+        // Only log non-rate-limit errors
+        console.debug('Translation request failed:', errorMessage)
       }
       // Return original text on any error
       return NextResponse.json({ translatedText: text })

@@ -30,6 +30,10 @@ export function ChatInterface() {
   const [translatedMessages, setTranslatedMessages] = useState<Record<string, string>>({})
   const [isUserAtBottom, setIsUserAtBottom] = useState(true)
   const previousMessagesLengthRef = useRef<number>(0)
+  const [adminProfilePicture, setAdminProfilePicture] = useState<string | null>(null)
+  const translatingRef = useRef<Set<string>>(new Set()) // Track messages currently being translated
+  const translationQueueRef = useRef<Array<{ messageId: string; text: string }>>([])
+  const isProcessingQueueRef = useRef<boolean>(false)
 
   const translateMessage = async (messageId: string, text: string) => {
     // Don't translate if language is English or if already translated
@@ -37,34 +41,91 @@ export function ChatInterface() {
       return translatedMessages[messageId] || text
     }
 
+    // Don't translate if already being translated
+    if (translatingRef.current.has(messageId)) {
+      return text
+    }
+
     // Don't translate empty or very short messages
     if (!text || text.trim().length < 2) {
       return text
     }
 
-    try {
-      const response = await fetch("/api/translate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text, targetLang: language }),
-      })
-
-      if (response.ok) {
-        const data = await response.json()
-        const translated = data.translatedText || text
-        // Only update if we got a valid translation
-        if (translated && translated !== text) {
-          setTranslatedMessages(prev => ({ ...prev, [messageId]: translated }))
-          return translated
-        }
-      }
-    } catch (error) {
-      // Silently fail - just use original text
-      console.debug("Translation failed for message, using original text:", error)
+    // Add to queue instead of translating immediately
+    if (!translationQueueRef.current.find(item => item.messageId === messageId)) {
+      translationQueueRef.current.push({ messageId, text })
     }
 
-    // Return original text on any error
+    // Process queue if not already processing
+    if (!isProcessingQueueRef.current) {
+      processTranslationQueue()
+    }
+
     return text
+  }
+
+  const processTranslationQueue = async () => {
+    if (isProcessingQueueRef.current || translationQueueRef.current.length === 0) {
+      return
+    }
+
+    // Don't process if page is hidden
+    if (typeof document === 'undefined' || document.hidden) {
+      return
+    }
+
+    isProcessingQueueRef.current = true
+
+    while (translationQueueRef.current.length > 0) {
+      // Stop processing if page becomes hidden or document is unavailable
+      if (typeof document === 'undefined' || document.hidden) {
+        isProcessingQueueRef.current = false
+        return
+      }
+
+      const item = translationQueueRef.current.shift()
+      if (!item) break
+
+      const { messageId, text } = item
+
+      // Skip if already translated or currently translating
+      if (translatedMessages[messageId] || translatingRef.current.has(messageId)) {
+        continue
+      }
+
+      // Mark as being translated
+      translatingRef.current.add(messageId)
+
+      try {
+        const response = await fetch("/api/translate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text, targetLang: language }),
+        })
+
+        if (response.ok) {
+          const data = await response.json()
+          const translated = data.translatedText || text
+          // Only update if we got a valid translation
+          if (translated && translated !== text) {
+            setTranslatedMessages(prev => ({ ...prev, [messageId]: translated }))
+          }
+        }
+      } catch (error) {
+        // Silently fail - just use original text
+        console.debug("Translation failed for message, using original text:", error)
+      } finally {
+        // Remove from translating set
+        translatingRef.current.delete(messageId)
+      }
+
+      // Add delay between requests to avoid rate limiting (500ms between each translation)
+      if (translationQueueRef.current.length > 0) {
+        await new Promise(resolve => setTimeout(resolve, 500))
+      }
+    }
+
+    isProcessingQueueRef.current = false
   }
 
   const fetchMessages = async () => {
@@ -75,10 +136,13 @@ export function ChatInterface() {
         const fetchedMessages = data.messages || []
         setMessages(fetchedMessages)
         
-        // Translate messages if needed
+        // Translate messages if needed (only new ones)
         if (language !== 'en') {
           fetchedMessages.forEach((message: Message) => {
-            if (!translatedMessages[message.id]) {
+            // Only translate if not already translated and not in queue
+            if (!translatedMessages[message.id] && 
+                !translatingRef.current.has(message.id) &&
+                !translationQueueRef.current.find(item => item.messageId === message.id)) {
               translateMessage(message.id, message.content)
             }
           })
@@ -109,31 +173,70 @@ export function ChatInterface() {
   }
 
   useEffect(() => {
-    fetchMessages()
+    let isMounted = true
 
-    // Poll for new messages every 3 seconds
+    const fetchMessagesSafe = async () => {
+      if (isMounted) {
+        await fetchMessages()
+      }
+    }
+
+    fetchMessagesSafe()
+    fetchAdminProfilePicture()
+
+    // Poll for new messages every 10 seconds (reduced from 3s to reduce server load)
+    // Only poll if page is visible
     const interval = setInterval(() => {
-      fetchMessages()
-    }, 3000)
+      // Only poll if page is visible and component is mounted
+      if (typeof document !== 'undefined' && !document.hidden && isMounted) {
+        fetchMessagesSafe()
+      }
+    }, 10000) // Increased to 10 seconds
 
-    return () => clearInterval(interval)
+    return () => {
+      isMounted = false
+      clearInterval(interval)
+    }
   }, [])
+
+  const fetchAdminProfilePicture = async () => {
+    try {
+      const response = await fetch("/api/branding")
+      if (response.ok) {
+        const data = await response.json()
+        setAdminProfilePicture(data.admin_profile_picture_url || "/trainer-avatar.jpg")
+      }
+    } catch (error) {
+      console.error("Failed to fetch admin profile picture:", error)
+      // Fallback to default
+      setAdminProfilePicture("/trainer-avatar.jpg")
+    }
+  }
 
   // Re-translate messages when language changes
   useEffect(() => {
-    if (language !== 'en' && messages.length > 0) {
-      messages.forEach((message) => {
-        // Clear existing translation and re-translate when language changes
-        if (!translatedMessages[message.id] || language !== 'en') {
-          translateMessage(message.id, message.content)
-        }
-      })
-    } else if (language === 'en') {
+    if (language === 'en') {
       // Clear translations when switching back to English
       setTranslatedMessages({})
+      translationQueueRef.current = []
+      translatingRef.current.clear()
+      isProcessingQueueRef.current = false
+    } else if (language !== 'en' && messages.length > 0) {
+      // Clear existing translations and re-translate when language changes
+      setTranslatedMessages({})
+      translationQueueRef.current = []
+      translatingRef.current.clear()
+      isProcessingQueueRef.current = false
+      
+      // Add all messages to queue with a delay to avoid rate limiting
+      setTimeout(() => {
+        messages.forEach((message) => {
+          translateMessage(message.id, message.content)
+        })
+      }, 100)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [language, messages.length])
+  }, [language])
 
   // Mark messages as seen immediately when chat page is opened
   useEffect(() => {
@@ -261,7 +364,7 @@ export function ChatInterface() {
       <div className="border-b border-border bg-card p-4">
         <div className="mx-auto flex max-w-2xl items-center gap-3">
           <Avatar>
-            <AvatarImage src="/trainer-avatar.jpg" />
+            <AvatarImage src={adminProfilePicture || "/trainer-avatar.jpg"} />
             <AvatarFallback className="bg-primary text-primary-foreground">JD</AvatarFallback>
           </Avatar>
           <div>
@@ -290,7 +393,7 @@ export function ChatInterface() {
                 >
                   {message.sender === "admin" && (
                     <Avatar className="h-8 w-8">
-                      <AvatarImage src="/trainer-avatar.jpg" />
+                      <AvatarImage src={adminProfilePicture || "/trainer-avatar.jpg"} />
                       <AvatarFallback className="bg-primary text-primary-foreground text-xs">JD</AvatarFallback>
                     </Avatar>
                   )}

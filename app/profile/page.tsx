@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { ClientHeader } from "@/components/client-header"
 import { Button } from "@/components/ui/button"
@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ArrowLeft, Loader2, Lock, Eye, EyeOff, User } from "lucide-react"
 import { toast } from "sonner"
+import { useLanguage } from "@/contexts/language-context"
 
 interface Customer {
   id: string
@@ -18,7 +19,7 @@ interface Customer {
   phone?: string
 }
 
-export default function ProfilePage() {
+function ProfilePageContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { t } = useLanguage()
@@ -288,6 +289,18 @@ export default function ProfilePage() {
         </Card>
       </div>
     </main>
+  )
+}
+
+export default function ProfilePage() {
+  return (
+    <Suspense fallback={
+      <div className="flex min-h-screen items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    }>
+      <ProfilePageContent />
+    </Suspense>
   )
 }
 

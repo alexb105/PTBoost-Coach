@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { usePathname, useRouter } from "next/navigation"
-import { Shield, Users, LogOut, BookOpen, Dumbbell } from "lucide-react"
+import { Shield, Users, LogOut, BookOpen, Dumbbell, Palette } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 
@@ -10,6 +10,7 @@ const navItems = [
   { href: "/admin", icon: Users, label: "Customers" },
   { href: "/admin/templates", icon: BookOpen, label: "Templates" },
   { href: "/admin/exercises", icon: Dumbbell, label: "Exercises" },
+  { href: "/admin/branding", icon: Palette, label: "Branding" },
 ]
 
 export function AdminNav() {

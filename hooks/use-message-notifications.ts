@@ -163,13 +163,27 @@ export function useMessageNotifications({
   useEffect(() => {
     if (!enabled) return
 
-    fetchUnreadCount()
+    let isMounted = true
+
+    const fetchUnreadCountSafe = async () => {
+      if (isMounted && enabled) {
+        await fetchUnreadCount()
+      }
+    }
+
+    fetchUnreadCountSafe()
 
     const interval = setInterval(() => {
-      fetchUnreadCount()
-    }, 3000) // Poll every 3 seconds
+      // Only poll if page is visible and component is mounted
+      if (typeof document !== 'undefined' && !document.hidden && isMounted && enabled) {
+        fetchUnreadCountSafe()
+      }
+    }, 10000) // Increased to 10 seconds to reduce server load
 
-    return () => clearInterval(interval)
+    return () => {
+      isMounted = false
+      clearInterval(interval)
+    }
   }, [enabled, fetchUnreadCount])
 
   return {

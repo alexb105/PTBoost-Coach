@@ -26,7 +26,12 @@
     "forgotPassword": "Forgot Password?",
     "rememberMe": "Remember me",
     "loginButton": "Sign In",
-    "welcome": "Welcome",
+    "welcome": "Welcome Back",
+    "signInToContinue": "Sign in to continue your fitness journey",
+    "signingIn": "Signing in...",
+    "noAccount": "Don't have an account?",
+    "contactTrainer": "Contact your trainer",
+    "securityMessage": "Protected by enterprise-grade security",
     "goodMorning": "Good morning",
     "goodAfternoon": "Good afternoon",
     "goodEvening": "Good evening"

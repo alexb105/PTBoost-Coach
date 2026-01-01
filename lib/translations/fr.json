@@ -29,7 +29,12 @@
     "forgotPassword": "Mot de passe oublié?",
     "rememberMe": "Se souvenir de moi",
     "loginButton": "Se connecter",
-    "welcome": "Bienvenue",
+    "welcome": "Bon retour",
+    "signInToContinue": "Connectez-vous pour continuer votre parcours fitness",
+    "signingIn": "Connexion en cours...",
+    "noAccount": "Vous n'avez pas de compte?",
+    "contactTrainer": "Contactez votre entraîneur",
+    "securityMessage": "Protégé par une sécurité de niveau entreprise",
     "goodMorning": "Bonjour",
     "goodAfternoon": "Bon après-midi",
     "goodEvening": "Bonsoir"

@@ -87,6 +87,9 @@ export default function CustomerDetailPage() {
   const [workouts, setWorkouts] = useState<Workout[]>([])
   const [messages, setMessages] = useState<Message[]>([])
   const [translatedMessages, setTranslatedMessages] = useState<Record<string, string>>({})
+  const translatingRef = useRef<Set<string>>(new Set()) // Track messages currently being translated
+  const translationQueueRef = useRef<Array<{ messageId: string; text: string }>>([])
+  const isProcessingQueueRef = useRef<boolean>(false)
   const [nutritionTarget, setNutritionTarget] = useState<NutritionTarget | null>(null)
   const [meals, setMeals] = useState<any[]>([])
   const [mealsDate, setMealsDate] = useState<string>(new Date().toISOString().split('T')[0])
@@ -227,34 +230,91 @@ export default function CustomerDetailPage() {
       return translatedMessages[messageId] || text
     }
 
+    // Don't translate if already being translated
+    if (translatingRef.current.has(messageId)) {
+      return text
+    }
+
     // Don't translate empty or very short messages
     if (!text || text.trim().length < 2) {
       return text
     }
 
-    try {
-      const response = await fetch("/api/translate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text, targetLang: language }),
-      })
-
-      if (response.ok) {
-        const data = await response.json()
-        const translated = data.translatedText || text
-        // Only update if we got a valid translation
-        if (translated && translated !== text) {
-          setTranslatedMessages(prev => ({ ...prev, [messageId]: translated }))
-          return translated
-        }
-      }
-    } catch (error) {
-      // Silently fail - just use original text
-      console.debug("Translation failed for message, using original text:", error)
+    // Add to queue instead of translating immediately
+    if (!translationQueueRef.current.find(item => item.messageId === messageId)) {
+      translationQueueRef.current.push({ messageId, text })
     }
 
-    // Return original text on any error
+    // Process queue if not already processing
+    if (!isProcessingQueueRef.current) {
+      processTranslationQueue()
+    }
+
     return text
+  }
+
+  const processTranslationQueue = async () => {
+    if (isProcessingQueueRef.current || translationQueueRef.current.length === 0) {
+      return
+    }
+
+    // Don't process if page is hidden
+    if (typeof document === 'undefined' || document.hidden) {
+      return
+    }
+
+    isProcessingQueueRef.current = true
+
+    while (translationQueueRef.current.length > 0) {
+      // Stop processing if page becomes hidden or document is unavailable
+      if (typeof document === 'undefined' || document.hidden) {
+        isProcessingQueueRef.current = false
+        return
+      }
+
+      const item = translationQueueRef.current.shift()
+      if (!item) break
+
+      const { messageId, text } = item
+
+      // Skip if already translated or currently translating
+      if (translatedMessages[messageId] || translatingRef.current.has(messageId)) {
+        continue
+      }
+
+      // Mark as being translated
+      translatingRef.current.add(messageId)
+
+      try {
+        const response = await fetch("/api/translate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text, targetLang: language }),
+        })
+
+        if (response.ok) {
+          const data = await response.json()
+          const translated = data.translatedText || text
+          // Only update if we got a valid translation
+          if (translated && translated !== text) {
+            setTranslatedMessages(prev => ({ ...prev, [messageId]: translated }))
+          }
+        }
+      } catch (error) {
+        // Silently fail - just use original text
+        console.debug("Translation failed for message, using original text:", error)
+      } finally {
+        // Remove from translating set
+        translatingRef.current.delete(messageId)
+      }
+
+      // Add delay between requests to avoid rate limiting (500ms between each translation)
+      if (translationQueueRef.current.length > 0) {
+        await new Promise(resolve => setTimeout(resolve, 500))
+      }
+    }
+
+    isProcessingQueueRef.current = false
   }
 
   // Poll for new messages when chat tab is active
@@ -275,10 +335,13 @@ export default function CustomerDetailPage() {
           
           setMessages(sortedMessages)
           
-          // Translate messages if needed
+          // Translate messages if needed (only new ones)
           if (language !== 'en') {
             sortedMessages.forEach((message: Message) => {
-              if (!translatedMessages[message.id]) {
+              // Only translate if not already translated and not in queue
+              if (!translatedMessages[message.id] && 
+                  !translatingRef.current.has(message.id) &&
+                  !translationQueueRef.current.find(item => item.messageId === message.id)) {
                 translateMessage(message.id, message.content)
               }
             })
@@ -297,30 +360,55 @@ export default function CustomerDetailPage() {
       }
     }
 
+    let isMounted = true
+
+    const fetchMessagesSafe = async () => {
+      if (isMounted && activeTab === "chat") {
+        await fetchMessages()
+      }
+    }
+
     // Fetch immediately
-    fetchMessages()
+    fetchMessagesSafe()
 
-    // Poll every 3 seconds
-    const interval = setInterval(fetchMessages, 3000)
+    // Poll every 10 seconds (reduced from 3s to reduce server load)
+    const interval = setInterval(() => {
+      // Only poll if page is visible and chat tab is active
+      if (typeof document !== 'undefined' && !document.hidden && isMounted && activeTab === "chat") {
+        fetchMessagesSafe()
+      }
+    }, 10000)
 
-    return () => clearInterval(interval)
+    return () => {
+      isMounted = false
+      clearInterval(interval)
+    }
   }, [customerId, activeTab, updateLastSeen, fetchUnreadCount, language])
 
   // Re-translate messages when language changes
   useEffect(() => {
-    if (language !== 'en' && messages.length > 0) {
-      messages.forEach((message) => {
-        // Clear existing translation and re-translate when language changes
-        if (!translatedMessages[message.id] || language !== 'en') {
-          translateMessage(message.id, message.content)
-        }
-      })
-    } else if (language === 'en') {
+    if (language === 'en') {
       // Clear translations when switching back to English
       setTranslatedMessages({})
+      translationQueueRef.current = []
+      translatingRef.current.clear()
+      isProcessingQueueRef.current = false
+    } else if (language !== 'en' && messages.length > 0) {
+      // Clear existing translations and re-translate when language changes
+      setTranslatedMessages({})
+      translationQueueRef.current = []
+      translatingRef.current.clear()
+      isProcessingQueueRef.current = false
+      
+      // Add all messages to queue with a delay to avoid rate limiting
+      setTimeout(() => {
+        messages.forEach((message) => {
+          translateMessage(message.id, message.content)
+        })
+      }, 100)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [language, messages.length])
+  }, [language])
 
   // Mark messages as seen immediately when chat tab is opened
   useEffect(() => {
@@ -2015,11 +2103,17 @@ export default function CustomerDetailPage() {
                   progressPhotos.map((photo) => (
                     <div key={photo.id} className="space-y-2">
                       <div className="aspect-[3/4] overflow-hidden rounded-lg bg-background">
-                        <img
-                          src={photo.url || "/placeholder.svg"}
-                          alt={`Progress photo from ${format(new Date(photo.date), "MMM d, yyyy")}`}
-                          className="h-full w-full object-cover"
-                        />
+                        {photo.url ? (
+                          <img
+                            src={photo.url}
+                            alt={`Progress photo from ${format(new Date(photo.date), "MMM d, yyyy")}`}
+                            className="h-full w-full object-cover"
+                          />
+                        ) : (
+                          <div className="flex h-full w-full items-center justify-center bg-muted">
+                            <Camera className="h-8 w-8 text-muted-foreground" />
+                          </div>
+                        )}
                       </div>
                       <p className="text-center text-sm text-muted-foreground">
                         {format(new Date(photo.date), "MMM d, yyyy")}

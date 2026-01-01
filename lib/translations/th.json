@@ -29,7 +29,12 @@
     "forgotPassword": "ลืมรหัสผ่าน?",
     "rememberMe": "จดจำฉัน",
     "loginButton": "เข้าสู่ระบบ",
-    "welcome": "ยินดีต้อนรับ",
+    "welcome": "ยินดีต้อนรับกลับ",
+    "signInToContinue": "เข้าสู่ระบบเพื่อดำเนินการต่อในเส้นทางการออกกำลังกายของคุณ",
+    "signingIn": "กำลังเข้าสู่ระบบ...",
+    "noAccount": "ยังไม่มีบัญชี?",
+    "contactTrainer": "ติดต่อเทรนเนอร์ของคุณ",
+    "securityMessage": "ป้องกันด้วยความปลอดภัยระดับองค์กร",
     "goodMorning": "สวัสดีตอนเช้า",
     "goodAfternoon": "สวัสดีตอนบ่าย",
     "goodEvening": "สวัสดีตอนเย็น"
