@@ -101,7 +101,17 @@ export default function CustomerDetailPage() {
   const [isViewTemplateDialogOpen, setIsViewTemplateDialogOpen] = useState(false)
   const [weightEntries, setWeightEntries] = useState<any[]>([])
   const [progressPhotos, setProgressPhotos] = useState<any[]>([])
+  const [weightGoals, setWeightGoals] = useState<any[]>([])
   const [templates, setTemplates] = useState<WorkoutTemplate[]>([])
+  const [isWeightGoalDialogOpen, setIsWeightGoalDialogOpen] = useState(false)
+  const [editingWeightGoal, setEditingWeightGoal] = useState<any | null>(null)
+  const [weightGoalForm, setWeightGoalForm] = useState({
+    target_weight: "",
+    goal_type: "weekly",
+    start_date: new Date().toISOString().split('T')[0],
+    end_date: "",
+    notes: ""
+  })
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState("workouts")
   const [isSaveTemplateDialogOpen, setIsSaveTemplateDialogOpen] = useState(false)
@@ -667,6 +677,7 @@ export default function CustomerDetailPage() {
         const progressData = await progressRes.json()
         setWeightEntries(progressData.weightEntries || [])
         setProgressPhotos(progressData.progressPhotos || [])
+        setWeightGoals(progressData.weightGoals || [])
       }
     } catch (error) {
       console.error("Error fetching customer data:", error)
@@ -2086,6 +2097,292 @@ export default function CustomerDetailPage() {
               <h2 className="text-2xl font-semibold mb-2">Progress Tracking</h2>
               <p className="text-sm text-muted-foreground">View client's weight entries and progress photos</p>
             </div>
+
+            {/* Weight Goals Section */}
+            <Card className="bg-card p-6">
+              <div className="mb-4 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
+                    <TrendingUp className="h-5 w-5 text-primary" />
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-foreground">Weight Goals</h3>
+                    <p className="text-sm text-muted-foreground">Set monthly or weekly weight goals</p>
+                  </div>
+                </div>
+                <Dialog open={isWeightGoalDialogOpen} onOpenChange={setIsWeightGoalDialogOpen}>
+                  <DialogTrigger asChild>
+                    <Button 
+                      size="sm" 
+                      onClick={() => {
+                        setEditingWeightGoal(null)
+                        setWeightGoalForm({
+                          target_weight: "",
+                          goal_type: "weekly",
+                          start_date: new Date().toISOString().split('T')[0],
+                          end_date: "",
+                          notes: ""
+                        })
+                      }}
+                    >
+                      <Plus className="mr-1 h-4 w-4" />
+                      Add Goal
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="bg-card">
+                    <DialogHeader>
+                      <DialogTitle>{editingWeightGoal ? "Edit Weight Goal" : "Set Weight Goal"}</DialogTitle>
+                      <DialogDescription>
+                        Set a {weightGoalForm.goal_type === "weekly" ? "weekly" : "monthly"} weight goal for this client
+                      </DialogDescription>
+                    </DialogHeader>
+                    <form onSubmit={async (e) => {
+                      e.preventDefault()
+                      try {
+                        const url = editingWeightGoal 
+                          ? `/api/admin/customers/${customerId}/weight-goals`
+                          : `/api/admin/customers/${customerId}/weight-goals`
+                        const method = editingWeightGoal ? "PUT" : "POST"
+                        const body = editingWeightGoal
+                          ? { goal_id: editingWeightGoal.id, ...weightGoalForm }
+                          : weightGoalForm
+
+                        const response = await fetch(url, {
+                          method,
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify(body),
+                        })
+
+                        if (response.ok) {
+                          toast.success(editingWeightGoal ? "Weight goal updated" : "Weight goal created")
+                          setIsWeightGoalDialogOpen(false)
+                          fetchCustomerData()
+                        } else {
+                          const error = await response.json()
+                          toast.error(error.error || "Failed to save weight goal")
+                        }
+                      } catch (error) {
+                        console.error("Error saving weight goal:", error)
+                        toast.error("Failed to save weight goal")
+                      }
+                    }} className="space-y-4 py-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="goal-type">Goal Type</Label>
+                        <Select
+                          value={weightGoalForm.goal_type}
+                          onValueChange={(value) => {
+                            setWeightGoalForm({ ...weightGoalForm, goal_type: value })
+                            // Auto-calculate end date based on goal type
+                            const start = new Date(weightGoalForm.start_date)
+                            const end = new Date(start)
+                            if (value === "weekly") {
+                              end.setDate(end.getDate() + 7)
+                            } else {
+                              end.setMonth(end.getMonth() + 1)
+                            }
+                            setWeightGoalForm(prev => ({ ...prev, end_date: end.toISOString().split('T')[0] }))
+                          }}
+                        >
+                          <SelectTrigger className="bg-background">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="weekly">Weekly</SelectItem>
+                            <SelectItem value="monthly">Monthly</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="target-weight">Target Weight (lbs)</Label>
+                        <Input
+                          id="target-weight"
+                          type="number"
+                          step="0.1"
+                          className="bg-background"
+                          value={weightGoalForm.target_weight}
+                          onChange={(e) => setWeightGoalForm({ ...weightGoalForm, target_weight: e.target.value })}
+                          required
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="start-date">Start Date</Label>
+                        <Input
+                          id="start-date"
+                          type="date"
+                          className="bg-background"
+                          value={weightGoalForm.start_date}
+                          onChange={(e) => {
+                            const start = new Date(e.target.value)
+                            const end = new Date(start)
+                            if (weightGoalForm.goal_type === "weekly") {
+                              end.setDate(end.getDate() + 7)
+                            } else {
+                              end.setMonth(end.getMonth() + 1)
+                            }
+                            setWeightGoalForm({ 
+                              ...weightGoalForm, 
+                              start_date: e.target.value,
+                              end_date: end.toISOString().split('T')[0]
+                            })
+                          }}
+                          required
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="end-date">End Date</Label>
+                        <Input
+                          id="end-date"
+                          type="date"
+                          className="bg-background"
+                          value={weightGoalForm.end_date}
+                          onChange={(e) => setWeightGoalForm({ ...weightGoalForm, end_date: e.target.value })}
+                          required
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="goal-notes">Notes (Optional)</Label>
+                        <Textarea
+                          id="goal-notes"
+                          className="bg-background"
+                          value={weightGoalForm.notes}
+                          onChange={(e) => setWeightGoalForm({ ...weightGoalForm, notes: e.target.value })}
+                          rows={3}
+                        />
+                      </div>
+                      <Button type="submit" className="w-full">
+                        {editingWeightGoal ? "Update Goal" : "Create Goal"}
+                      </Button>
+                    </form>
+                  </DialogContent>
+                </Dialog>
+              </div>
+
+              <div className="space-y-3">
+                {weightGoals.length === 0 ? (
+                  <p className="text-sm text-muted-foreground text-center py-4">No weight goals set yet.</p>
+                ) : (
+                  weightGoals.map((goal) => {
+                    const startDate = new Date(goal.start_date)
+                    const endDate = new Date(goal.end_date)
+                    const today = new Date()
+                    const isActive = today >= startDate && today <= endDate
+                    const isPast = today > endDate
+                    
+                    // Find current weight (most recent entry within goal period)
+                    const currentWeightEntry = weightEntries
+                      .filter(e => {
+                        const entryDate = new Date(e.date)
+                        return entryDate >= startDate && entryDate <= endDate
+                      })
+                      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0]
+                    
+                    const currentWeight = currentWeightEntry?.weight || null
+                    const progress = currentWeight ? ((currentWeight / goal.target_weight) * 100) : 0
+                    const remaining = currentWeight ? (goal.target_weight - currentWeight) : null
+
+                    return (
+                      <div key={goal.id} className="rounded-lg bg-background p-4 border border-border">
+                        <div className="flex items-start justify-between mb-2">
+                          <div>
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="font-semibold text-foreground">
+                                {goal.goal_type === "weekly" ? "Weekly" : "Monthly"} Goal
+                              </span>
+                              {isActive && (
+                                <Badge variant="default" className="text-xs">Active</Badge>
+                              )}
+                              {isPast && (
+                                <Badge variant="secondary" className="text-xs">Completed</Badge>
+                              )}
+                            </div>
+                            <p className="text-sm text-muted-foreground">
+                              {format(startDate, "MMM d")} - {format(endDate, "MMM d, yyyy")}
+                            </p>
+                          </div>
+                          <div className="flex gap-2">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8"
+                              onClick={() => {
+                                setEditingWeightGoal(goal)
+                                setWeightGoalForm({
+                                  target_weight: goal.target_weight.toString(),
+                                  goal_type: goal.goal_type,
+                                  start_date: goal.start_date,
+                                  end_date: goal.end_date,
+                                  notes: goal.notes || ""
+                                })
+                                setIsWeightGoalDialogOpen(true)
+                              }}
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 text-destructive hover:text-destructive"
+                              onClick={async () => {
+                                if (confirm("Are you sure you want to delete this goal?")) {
+                                  try {
+                                    const response = await fetch(
+                                      `/api/admin/customers/${customerId}/weight-goals?goal_id=${goal.id}`,
+                                      { method: "DELETE" }
+                                    )
+                                    if (response.ok) {
+                                      toast.success("Weight goal deleted")
+                                      fetchCustomerData()
+                                    } else {
+                                      toast.error("Failed to delete goal")
+                                    }
+                                  } catch (error) {
+                                    console.error("Error deleting goal:", error)
+                                    toast.error("Failed to delete goal")
+                                  }
+                                }
+                              }}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm text-muted-foreground">Target Weight</span>
+                            <span className="font-semibold text-foreground">{goal.target_weight} lbs</span>
+                          </div>
+                          {currentWeight && (
+                            <>
+                              <div className="flex items-center justify-between">
+                                <span className="text-sm text-muted-foreground">Current Weight</span>
+                                <span className="font-semibold text-foreground">{currentWeight} lbs</span>
+                              </div>
+                              {remaining !== null && (
+                                <div className="flex items-center justify-between">
+                                  <span className="text-sm text-muted-foreground">
+                                    {remaining > 0 ? "Remaining" : "Exceeded by"}
+                                  </span>
+                                  <span className={`font-semibold ${remaining > 0 ? "text-foreground" : "text-destructive"}`}>
+                                    {Math.abs(remaining).toFixed(1)} lbs
+                                  </span>
+                                </div>
+                              )}
+                              <Progress value={Math.min(progress, 100)} className="h-2" />
+                            </>
+                          )}
+                          {!currentWeight && (
+                            <p className="text-xs text-muted-foreground">No weight entries recorded for this period yet.</p>
+                          )}
+                          {goal.notes && (
+                            <p className="text-xs text-muted-foreground mt-2">{goal.notes}</p>
+                          )}
+                        </div>
+                      </div>
+                    )
+                  })
+                )}
+              </div>
+            </Card>
 
             {/* Weight Tracking Section */}
             <Card className="bg-card p-6">

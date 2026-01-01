@@ -43,8 +43,8 @@ export async function GET(
     const { id } = await params
     const supabase = createServerClient()
     
-    // Fetch weight entries and progress photos for the customer
-    const [weightRes, photosRes] = await Promise.all([
+    // Fetch weight entries, progress photos, and weight goals for the customer
+    const [weightRes, photosRes, goalsRes] = await Promise.all([
       supabase
         .from('weight_entries')
         .select('*')
@@ -54,7 +54,12 @@ export async function GET(
         .from('progress_photos')
         .select('*')
         .eq('customer_id', id)
-        .order('date', { ascending: false })
+        .order('date', { ascending: false }),
+      supabase
+        .from('weight_goals')
+        .select('*')
+        .eq('customer_id', id)
+        .order('start_date', { ascending: false })
     ])
 
     if (weightRes.error) {
@@ -65,9 +70,14 @@ export async function GET(
       throw photosRes.error
     }
 
+    if (goalsRes.error) {
+      throw goalsRes.error
+    }
+
     return NextResponse.json({
       weightEntries: weightRes.data || [],
-      progressPhotos: photosRes.data || []
+      progressPhotos: photosRes.data || [],
+      weightGoals: goalsRes.data || []
     })
   } catch (error: any) {
     console.error('Error fetching progress:', error)

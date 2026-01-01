@@ -24,6 +24,8 @@ import {
 import { format } from "date-fns"
 import { useLanguage } from "@/contexts/language-context"
 import { toast } from "sonner"
+import { Progress } from "@/components/ui/progress"
+import { Badge } from "@/components/ui/badge"
 
 interface WeightEntry {
   id: string
@@ -40,10 +42,20 @@ interface ProgressPhoto {
   notes?: string
 }
 
+interface WeightGoal {
+  id: string
+  target_weight: number
+  goal_type: "weekly" | "monthly"
+  start_date: string
+  end_date: string
+  notes?: string
+}
+
 export function ProgressTracker() {
   const { t } = useLanguage()
   const [weightEntries, setWeightEntries] = useState<WeightEntry[]>([])
   const [progressPhotos, setProgressPhotos] = useState<ProgressPhoto[]>([])
+  const [weightGoals, setWeightGoals] = useState<WeightGoal[]>([])
   const [loading, setLoading] = useState(true)
   const [weightDialogOpen, setWeightDialogOpen] = useState(false)
   const [weightForm, setWeightForm] = useState({
@@ -76,6 +88,7 @@ export function ProgressTracker() {
         const data = await response.json()
         setWeightEntries(data.weightEntries || [])
         setProgressPhotos(data.progressPhotos || [])
+        setWeightGoals(data.weightGoals || [])
       }
     } catch (error) {
       console.error('Error fetching progress:', error)
@@ -279,6 +292,95 @@ export function ProgressTracker() {
         <h1 className="text-2xl font-bold text-foreground">{t("progress.title")}</h1>
         <p className="text-sm text-muted-foreground">{t("progress.title")}</p>
       </div>
+
+      {/* Weight Goals Section */}
+      {weightGoals.length > 0 && (
+        <Card className="mb-6 bg-card p-6">
+          <div className="mb-4 flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
+              <TrendingUp className="h-5 w-5 text-primary" />
+            </div>
+            <div>
+              <h2 className="font-semibold text-foreground">Weight Goals</h2>
+              <p className="text-sm text-muted-foreground">Your current weight goals</p>
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            {weightGoals.map((goal) => {
+              const startDate = new Date(goal.start_date)
+              const endDate = new Date(goal.end_date)
+              const today = new Date()
+              const isActive = today >= startDate && today <= endDate
+              const isPast = today > endDate
+              
+              // Find current weight (most recent entry within goal period)
+              const currentWeightEntry = weightEntries
+                .filter(e => {
+                  const entryDate = new Date(e.date)
+                  return entryDate >= startDate && entryDate <= endDate
+                })
+                .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0]
+              
+              const currentWeight = currentWeightEntry?.weight || null
+              const progress = currentWeight ? ((currentWeight / goal.target_weight) * 100) : 0
+              const remaining = currentWeight ? (goal.target_weight - currentWeight) : null
+
+              return (
+                <div key={goal.id} className="rounded-lg bg-background p-4 border border-border">
+                  <div className="mb-2">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="font-semibold text-foreground">
+                        {goal.goal_type === "weekly" ? "Weekly" : "Monthly"} Goal
+                      </span>
+                      {isActive && (
+                        <span className="text-xs bg-primary/20 text-primary px-2 py-0.5 rounded">Active</span>
+                      )}
+                      {isPast && (
+                        <span className="text-xs bg-muted text-muted-foreground px-2 py-0.5 rounded">Completed</span>
+                      )}
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      {format(startDate, "MMM d")} - {format(endDate, "MMM d, yyyy")}
+                    </p>
+                  </div>
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-muted-foreground">Target Weight</span>
+                      <span className="font-semibold text-foreground">{goal.target_weight} {t("progress.weightUnit")}</span>
+                    </div>
+                    {currentWeight && (
+                      <>
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm text-muted-foreground">Current Weight</span>
+                          <span className="font-semibold text-foreground">{currentWeight} {t("progress.weightUnit")}</span>
+                        </div>
+                        {remaining !== null && (
+                          <div className="flex items-center justify-between">
+                            <span className="text-sm text-muted-foreground">
+                              {remaining > 0 ? "Remaining" : "Exceeded by"}
+                            </span>
+                            <span className={`font-semibold ${remaining > 0 ? "text-foreground" : "text-destructive"}`}>
+                              {Math.abs(remaining).toFixed(1)} {t("progress.weightUnit")}
+                            </span>
+                          </div>
+                        )}
+                        <Progress value={Math.min(progress, 100)} className="h-2" />
+                      </>
+                    )}
+                    {!currentWeight && (
+                      <p className="text-xs text-muted-foreground">No weight entries recorded for this period yet.</p>
+                    )}
+                    {goal.notes && (
+                      <p className="text-xs text-muted-foreground mt-2">{goal.notes}</p>
+                    )}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        </Card>
+      )}
 
       {/* Weight Tracking Section */}
       <Card className="mb-6 bg-card p-6">
