@@ -6,7 +6,7 @@ import { useRouter, useParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { ArrowLeft, User, Calendar, MessageCircle, Apple, Plus, Send, Loader2, X, Trash2, Pencil, BookOpen, Save, CheckCircle2, TrendingUp, Camera, Flame, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Eye, Lock } from "lucide-react"
+import { ArrowLeft, User, Calendar, MessageCircle, Apple, Plus, Send, Loader2, X, Trash2, Pencil, BookOpen, Save, CheckCircle2, TrendingUp, Camera, Flame, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Eye, Lock, Heart, Reply } from "lucide-react"
 import { format } from "date-fns"
 import { toast } from "sonner"
 import { Input } from "@/components/ui/input"
@@ -17,6 +17,12 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
+import {
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+} from "@/components/ui/chart"
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, ReferenceLine } from "recharts"
 import { WeekView, type Workout as WeekViewWorkout } from "@/components/week-view"
 import { ExerciseFormItem, type ExerciseFormData } from "@/components/exercise-form-item"
 import { WorkoutSummaryView } from "@/components/workout-summary-view"
@@ -51,12 +57,34 @@ interface Workout {
   created_at: string
 }
 
+interface MessageLike {
+  id: string
+  message_id: string
+  customer_id: string
+  liked_by: "admin" | "customer"
+  created_at: string
+}
+
+interface MessageReply {
+  id: string
+  message_id: string
+  customer_id: string
+  sender: "admin" | "customer"
+  content: string
+  created_at: string
+}
+
 interface Message {
   id: string
   customer_id: string
   sender: "admin" | "customer"
   content: string
   created_at: string
+  likes?: MessageLike[]
+  replies?: MessageReply[]
+  likeCount?: number
+  replyCount?: number
+  isLiked?: boolean
 }
 
 interface NutritionTarget {
@@ -87,6 +115,7 @@ export default function CustomerDetailPage() {
   const [workouts, setWorkouts] = useState<Workout[]>([])
   const [messages, setMessages] = useState<Message[]>([])
   const [translatedMessages, setTranslatedMessages] = useState<Record<string, string>>({})
+  const [translatedReplies, setTranslatedReplies] = useState<Record<string, string>>({})
   const translatingRef = useRef<Set<string>>(new Set()) // Track messages currently being translated
   const translationQueueRef = useRef<Array<{ messageId: string; text: string }>>([])
   const isProcessingQueueRef = useRef<boolean>(false)
@@ -102,16 +131,16 @@ export default function CustomerDetailPage() {
   const [weightEntries, setWeightEntries] = useState<any[]>([])
   const [progressPhotos, setProgressPhotos] = useState<any[]>([])
   const [weightGoals, setWeightGoals] = useState<any[]>([])
-  const [templates, setTemplates] = useState<WorkoutTemplate[]>([])
   const [isWeightGoalDialogOpen, setIsWeightGoalDialogOpen] = useState(false)
   const [editingWeightGoal, setEditingWeightGoal] = useState<any | null>(null)
   const [weightGoalForm, setWeightGoalForm] = useState({
     target_weight: "",
-    goal_type: "weekly",
+    goal_type: "monthly" as "weekly" | "monthly",
     start_date: new Date().toISOString().split('T')[0],
     end_date: "",
     notes: ""
   })
+  const [templates, setTemplates] = useState<WorkoutTemplate[]>([])
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState("workouts")
   const [isSaveTemplateDialogOpen, setIsSaveTemplateDialogOpen] = useState(false)
@@ -175,36 +204,44 @@ export default function CustomerDetailPage() {
     // Split by " - " to separate notes
     const parts = exerciseStr.split(" - ")
     const notes = parts.length > 1 ? parts[1].trim() : ""
-    let mainPart = parts[0].trim()
-    
-    // Extract weight (format: @ weight)
-    const weightMatch = mainPart.match(/@\s*([^-]+?)(?:\s*-\s*|$)/)
-    let weight = ""
-    if (weightMatch) {
-      weight = weightMatch[1].trim()
-      mainPart = mainPart.replace(/@\s*[^-]+?(\s*-\s*|$)/, "").trim()
-    }
-    
-    // Extract sets and reps/seconds (format: 3x8 or 3x30s)
-    const setsRepsMatch = mainPart.match(/(\d+)x([\d-]+)(s)?/)
-    let sets = ""
-    let reps = ""
-    let type: "reps" | "seconds" = "reps"
-    if (setsRepsMatch) {
-      sets = setsRepsMatch[1]
-      reps = setsRepsMatch[2]
-      type = setsRepsMatch[3] === "s" ? "seconds" : "reps"
-      mainPart = mainPart.replace(/\d+x[\d-]+s?/, "").trim()
-    }
-    
-    // Remaining is the exercise name
-    const name = mainPart.trim()
-    
+      let mainPart = parts[0].trim()
+      
+      // Extract weight (format: @ weight)
+      const weightMatch = mainPart.match(/@\s*([^-]+?)(?:\s*-\s*|$)/)
+      let weight = ""
+      if (weightMatch) {
+        weight = weightMatch[1].trim()
+        mainPart = mainPart.replace(/@\s*[^-]+?(\s*-\s*|$)/, "").trim()
+      }
+      
+      // Extract sets and reps/seconds (format: 3x8 or 3x30s)
+      const setsRepsMatch = mainPart.match(/(\d+)x([\d-]+)(s)?/)
+      let sets = ""
+      let reps = ""
+      let type: "reps" | "seconds" = "reps"
+      if (setsRepsMatch) {
+        sets = setsRepsMatch[1]
+        reps = setsRepsMatch[2]
+        type = setsRepsMatch[3] === "s" ? "seconds" : "reps"
+        mainPart = mainPart.replace(/\d+x[\d-]+s?/, "").trim()
+      }
+      
+      // Remaining is the exercise name
+      const name = mainPart.trim()
+      
     return { name, sets, reps, type, weight, notes }
   }
 
   // Chat state
   const [newMessage, setNewMessage] = useState("")
+  const [replyingTo, setReplyingTo] = useState<string | null>(null)
+  const [replyContent, setReplyContent] = useState("")
+  const [sendingReply, setSendingReply] = useState(false)
+  const [likingMessage, setLikingMessage] = useState<string | null>(null)
+  const replyingToRef = useRef<string | null>(null)
+  const [hasMoreMessages, setHasMoreMessages] = useState(false)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const [isUserAtTop, setIsUserAtTop] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const messagesContainerRef = useRef<HTMLDivElement>(null)
   const [isUserAtBottom, setIsUserAtBottom] = useState(true)
@@ -235,9 +272,14 @@ export default function CustomerDetailPage() {
   }, [customerId])
 
   const translateMessage = async (messageId: string, text: string) => {
-    // Don't translate if already translated
-    if (translatedMessages[messageId]) {
-      return translatedMessages[messageId]
+    const isReply = messageId.startsWith('reply-')
+    // For replies, use the reply ID (without 'reply-' prefix) for lookup
+    const lookupKey = isReply ? messageId.replace('reply-', '') : messageId
+    const translationState = isReply ? translatedReplies : translatedMessages
+    
+    // Don't translate if language is English or if already translated
+    if (language === 'en' || translationState[lookupKey]) {
+      return translationState[lookupKey] || text
     }
 
     // Don't translate if already being translated
@@ -250,7 +292,6 @@ export default function CustomerDetailPage() {
       return text
     }
 
-    // Always translate (even if target is English, we still need to translate foreign language messages)
     // Add to queue instead of translating immediately
     if (!translationQueueRef.current.find(item => item.messageId === messageId)) {
       translationQueueRef.current.push({ messageId, text })
@@ -287,9 +328,11 @@ export default function CustomerDetailPage() {
       if (!item) break
 
       const { messageId, text } = item
+      const isReply = messageId.startsWith('reply-')
+      const translationState = isReply ? translatedReplies : translatedMessages
 
       // Skip if already translated or currently translating
-      if (translatedMessages[messageId] || translatingRef.current.has(messageId)) {
+      if (translationState[messageId] || translatingRef.current.has(messageId)) {
         continue
       }
 
@@ -306,9 +349,15 @@ export default function CustomerDetailPage() {
         if (response.ok) {
           const data = await response.json()
           const translated = data.translatedText || text
-          // Always update translation state, even if same (to mark as processed)
-          if (translated) {
+          // Only update if we got a valid translation
+          if (translated && translated !== text) {
+            if (isReply) {
+              // Store with reply ID (without 'reply-' prefix) for easier lookup
+              const replyId = messageId.replace('reply-', '')
+              setTranslatedReplies(prev => ({ ...prev, [replyId]: translated }))
+            } else {
             setTranslatedMessages(prev => ({ ...prev, [messageId]: translated }))
+            }
           }
         }
       } catch (error) {
@@ -328,43 +377,91 @@ export default function CustomerDetailPage() {
     isProcessingQueueRef.current = false
   }
 
-  // Poll for new messages when chat tab is active
-  useEffect(() => {
-    if (activeTab !== "chat") return
-
-    const fetchMessages = async () => {
-      try {
-        const response = await fetch(`/api/admin/customers/${customerId}/messages`)
+  const fetchMessages = async (beforeDate?: string) => {
+    try {
+      const url = beforeDate 
+        ? `/api/admin/customers/${customerId}/messages?before=${encodeURIComponent(beforeDate)}&limit=10`
+        : `/api/admin/customers/${customerId}/messages?limit=10`
+      
+      const response = await fetch(url)
         if (response.ok) {
           const data = await response.json()
           const fetchedMessages = data.messages || []
+        const hasMore = data.hasMore || false
+        
+        if (beforeDate) {
+          // Loading more - prepend older messages
+          setMessages(prev => [...fetchedMessages, ...prev])
+          setHasMoreMessages(hasMore)
           
-          // Sort messages by created_at timestamp (oldest first)
-          const sortedMessages = [...fetchedMessages].sort((a, b) => {
-            return new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
-          })
+          // Translate from most recent to oldest (prioritize newest messages)
+          // Use setTimeout to ensure state is updated before translating
+          if (language !== 'en') {
+            setTimeout(() => {
+              setMessages(currentMessages => {
+                // Get all messages in reverse order (newest first) for translation
+                const messagesToTranslate = [...currentMessages].reverse()
+                messagesToTranslate.forEach((message: Message) => {
+                  // Only translate if not already translated and not in queue
+                  if (!translatedMessages[message.id] && 
+                      !translatingRef.current.has(message.id) &&
+                      !translationQueueRef.current.find(item => item.messageId === message.id)) {
+                    translateMessage(message.id, message.content)
+                  }
+                  
+                  // Translate replies for this message (newest first)
+                  if (message.replies && message.replies.length > 0) {
+                    const repliesToTranslate = [...message.replies].reverse()
+                    repliesToTranslate.forEach((reply) => {
+                      if (!translatedReplies[reply.id] && 
+                          !translatingRef.current.has(`reply-${reply.id}`) &&
+                          !translationQueueRef.current.find(item => item.messageId === `reply-${reply.id}`)) {
+                        translateMessage(`reply-${reply.id}`, reply.content)
+                      }
+                    })
+                  }
+                })
+                return currentMessages // Return unchanged
+              })
+            }, 100)
+          }
+        } else {
+          // Initial load - replace all messages
+          setMessages(fetchedMessages)
+          setHasMoreMessages(hasMore)
           
-          setMessages(sortedMessages)
-          
-          // Always translate messages (to user's selected language, even if it's English)
+          // Translate messages if needed (only new ones)
+          // Translate from most recent to oldest (reverse order)
+          if (language !== 'en') {
           setTimeout(() => {
-            sortedMessages.forEach((message: Message) => {
+              const messagesToTranslate = [...fetchedMessages].reverse()
+              messagesToTranslate.forEach((message: Message) => {
               // Only translate if not already translated and not in queue
               if (!translatedMessages[message.id] && 
                   !translatingRef.current.has(message.id) &&
                   !translationQueueRef.current.find(item => item.messageId === message.id)) {
                 translateMessage(message.id, message.content)
-              }
-            })
-            // Ensure queue processing starts
-            if (!isProcessingQueueRef.current && translationQueueRef.current.length > 0) {
-              processTranslationQueue()
-            }
+                }
+                
+                // Translate replies for this message (newest first)
+                if (message.replies && message.replies.length > 0) {
+                  const repliesToTranslate = [...message.replies].reverse()
+                  repliesToTranslate.forEach((reply) => {
+                    if (!translatedReplies[reply.id] && 
+                        !translatingRef.current.has(`reply-${reply.id}`) &&
+                        !translationQueueRef.current.find(item => item.messageId === `reply-${reply.id}`)) {
+                      translateMessage(`reply-${reply.id}`, reply.content)
+                    }
+                  })
+                }
+              })
           }, 100)
+          }
+        }
           
           // Update last seen timestamp to the most recent message
-          if (sortedMessages.length > 0) {
-            const lastMessage = sortedMessages[sortedMessages.length - 1]
+        if (fetchedMessages.length > 0) {
+          const lastMessage = fetchedMessages[fetchedMessages.length - 1]
             updateLastSeen(lastMessage.created_at)
             // Immediately refresh unread count to clear badge
             setTimeout(() => fetchUnreadCount(), 100)
@@ -374,6 +471,10 @@ export default function CustomerDetailPage() {
         console.error("Error fetching messages:", error)
       }
     }
+
+  // Poll for new messages when chat tab is active
+  useEffect(() => {
+    if (activeTab !== "chat") return
 
     let isMounted = true
 
@@ -398,55 +499,44 @@ export default function CustomerDetailPage() {
       isMounted = false
       clearInterval(interval)
     }
-  }, [customerId, activeTab, updateLastSeen, fetchUnreadCount, language])
+  }, [customerId, activeTab, updateLastSeen, fetchUnreadCount, language, translatedMessages])
 
   // Re-translate messages when language changes
   useEffect(() => {
-    if (messages.length > 0) {
+    if (language === 'en') {
+      // Clear translations when switching back to English
+      setTranslatedMessages({})
+      setTranslatedReplies({})
+      translationQueueRef.current = []
+      translatingRef.current.clear()
+      isProcessingQueueRef.current = false
+    } else if (language !== 'en' && messages.length > 0) {
       // Clear existing translations and re-translate when language changes
       setTranslatedMessages({})
+      setTranslatedReplies({})
       translationQueueRef.current = []
       translatingRef.current.clear()
       isProcessingQueueRef.current = false
       
       // Add all messages to queue with a delay to avoid rate limiting
+      // Translate from most recent to oldest (reverse order)
       setTimeout(() => {
-        messages.forEach((message) => {
+        const messagesToTranslate = [...messages].reverse()
+        messagesToTranslate.forEach((message) => {
           translateMessage(message.id, message.content)
+          
+          // Translate replies for this message (newest first)
+          if (message.replies && message.replies.length > 0) {
+            const repliesToTranslate = [...message.replies].reverse()
+            repliesToTranslate.forEach((reply) => {
+              translateMessage(`reply-${reply.id}`, reply.content)
+            })
+          }
         })
-        // Ensure queue processing starts
-        if (!isProcessingQueueRef.current && translationQueueRef.current.length > 0) {
-          processTranslationQueue()
-        }
       }, 100)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [language])
-
-  // Ensure new messages are translated when they arrive
-  useEffect(() => {
-    if (messages.length > 0 && activeTab === "chat") {
-      // Check for untranslated messages (always translate, even to English)
-      const untranslatedMessages = messages.filter(
-        (message) =>
-          !translatedMessages[message.id] &&
-          !translatingRef.current.has(message.id) &&
-          !translationQueueRef.current.find((item) => item.messageId === message.id)
-      )
-
-      if (untranslatedMessages.length > 0) {
-        // Add untranslated messages to queue
-        untranslatedMessages.forEach((message) => {
-          translateMessage(message.id, message.content)
-        })
-        // Ensure queue processing starts
-        if (!isProcessingQueueRef.current && translationQueueRef.current.length > 0) {
-          processTranslationQueue()
-        }
-      }
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [messages, language, activeTab])
 
   // Mark messages as seen immediately when chat tab is opened
   useEffect(() => {
@@ -457,6 +547,19 @@ export default function CustomerDetailPage() {
       fetchUnreadCount()
     }
   }, [activeTab, messages.length, updateLastSeen, fetchUnreadCount]) // Run when tab changes to chat or messages load
+
+  // Scroll to reply input when replying opens
+  useEffect(() => {
+    if (replyingTo && replyingTo !== replyingToRef.current) {
+      replyingToRef.current = replyingTo
+      setTimeout(() => {
+        const replyInput = document.querySelector(`[data-reply-to="${replyingTo}"]`)
+        replyInput?.scrollIntoView({ behavior: "smooth", block: "nearest" })
+      }, 150)
+    } else if (!replyingTo) {
+      replyingToRef.current = null
+    }
+  }, [replyingTo])
 
   // Check if user is at bottom of scroll container
   const checkIfAtBottom = () => {
@@ -474,6 +577,54 @@ export default function CustomerDetailPage() {
     return isAtBottom
   }
 
+  // Check if user is at top of scroll container
+  const checkIfAtTop = () => {
+    const container = messagesContainerRef.current
+    if (!container) return false
+    
+    const threshold = 100 // pixels from top
+    const scrollTop = container.scrollTop
+    const isAtTop = scrollTop < threshold
+    
+    setIsUserAtTop(isAtTop)
+    return isAtTop
+  }
+
+  const handleLoadMore = async () => {
+    if (loadingMore || !hasMoreMessages || messages.length === 0) return
+    
+    setLoadingMore(true)
+    const oldestMessage = messages[0]
+    const beforeDate = oldestMessage.created_at
+    
+    // Save current scroll position and scroll top
+    const container = messagesContainerRef.current
+    const previousScrollHeight = container?.scrollHeight || 0
+    const previousScrollTop = container?.scrollTop || 0
+    
+    try {
+      await fetchMessages(beforeDate)
+      
+      // Restore scroll position after new messages are loaded
+      // Use requestAnimationFrame to ensure DOM is updated
+      requestAnimationFrame(() => {
+        if (container) {
+          const newScrollHeight = container.scrollHeight
+          const scrollDifference = newScrollHeight - previousScrollHeight
+          // Set scroll position to maintain the same relative position
+          container.scrollTop = previousScrollTop + scrollDifference
+        }
+      })
+    } catch (error) {
+      console.error("Error loading more messages:", error)
+    } finally {
+      // Delay setting loadingMore to false to prevent auto-scroll
+      setTimeout(() => {
+        setLoadingMore(false)
+      }, 100)
+    }
+  }
+
   // Handle scroll events to track user position
   useEffect(() => {
     const container = messagesContainerRef.current
@@ -481,6 +632,7 @@ export default function CustomerDetailPage() {
 
     const handleScroll = () => {
       checkIfAtBottom()
+      checkIfAtTop()
     }
 
     // Also check when tab opens
@@ -498,6 +650,12 @@ export default function CustomerDetailPage() {
   // Auto-scroll to bottom only if user is already at bottom
   useEffect(() => {
     if (activeTab === "chat") {
+      // Don't auto-scroll if we're loading more messages (messages added at top)
+      if (loadingMore) {
+        previousMessagesLengthRef.current = messages.length
+        return
+      }
+      
       // Only auto-scroll if messages actually changed (new message added)
       const hasNewMessage = messages.length > previousMessagesLengthRef.current
       previousMessagesLengthRef.current = messages.length
@@ -521,7 +679,7 @@ export default function CustomerDetailPage() {
         setTimeout(() => fetchUnreadCount(), 100)
       }
     }
-  }, [messages, activeTab, updateLastSeen, fetchUnreadCount])
+  }, [messages, activeTab, updateLastSeen, fetchUnreadCount, loadingMore])
 
   // Auto-scroll to bottom when chat tab is first opened
   useEffect(() => {
@@ -632,26 +790,29 @@ export default function CustomerDetailPage() {
       if (messagesRes.ok) {
         const messagesData = await messagesRes.json()
         const fetchedMessages = messagesData.messages || []
-        // Sort messages by created_at timestamp (oldest first)
-        const sortedMessages = [...fetchedMessages].sort((a, b) => {
-          return new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
-        })
-        setMessages(sortedMessages)
+        // Messages are already sorted oldest first from API
+        setMessages(fetchedMessages)
         
-        // Always translate messages (to user's selected language, even if it's English)
-        setTimeout(() => {
-          sortedMessages.forEach((message: Message) => {
-            if (!translatedMessages[message.id] && 
-                !translatingRef.current.has(message.id) &&
-                !translationQueueRef.current.find(item => item.messageId === message.id)) {
+        // Translate messages if needed
+        // Translate from most recent to oldest (reverse order)
+        if (language !== 'en') {
+          const messagesToTranslate = [...fetchedMessages].reverse()
+          messagesToTranslate.forEach((message: Message) => {
+            if (!translatedMessages[message.id]) {
               translateMessage(message.id, message.content)
             }
+            
+            // Translate replies for this message (newest first)
+            if (message.replies && message.replies.length > 0) {
+              const repliesToTranslate = [...message.replies].reverse()
+              repliesToTranslate.forEach((reply) => {
+                if (!translatedReplies[reply.id]) {
+                  translateMessage(`reply-${reply.id}`, reply.content)
+                }
+              })
+            }
           })
-          // Ensure queue processing starts
-          if (!isProcessingQueueRef.current && translationQueueRef.current.length > 0) {
-            processTranslationQueue()
-          }
-        }, 100)
+        }
       }
 
       if (nutritionRes.ok) {
@@ -1036,7 +1197,7 @@ export default function CustomerDetailPage() {
 
   const updateExercise = (index: number, field: keyof ExerciseFormData, value: string) => {
     const updatedExercises = [...newWorkout.exercises]
-    updatedExercises[index] = { ...updatedExercises[index], [field]: value }
+      updatedExercises[index] = { ...updatedExercises[index], [field]: value }
     setNewWorkout({ ...newWorkout, exercises: updatedExercises })
   }
 
@@ -1048,12 +1209,12 @@ export default function CustomerDetailPage() {
         .filter((ex) => ex.name && ex.name.trim())
         .map((ex) => {
           let exerciseStr = ex.name.trim()
-          if (ex.sets && ex.reps) {
-            exerciseStr += ` ${ex.sets}x${ex.reps}${ex.type === "seconds" ? "s" : ""}`
-          }
-          if (ex.weight && ex.weight.trim()) {
-            exerciseStr += ` @ ${ex.weight.trim()}`
-          }
+            if (ex.sets && ex.reps) {
+              exerciseStr += ` ${ex.sets}x${ex.reps}${ex.type === "seconds" ? "s" : ""}`
+            }
+            if (ex.weight && ex.weight.trim()) {
+              exerciseStr += ` @ ${ex.weight.trim()}`
+            }
           if (ex.notes && ex.notes.trim()) {
             exerciseStr += ` - ${ex.notes.trim()}`
           }
@@ -1137,9 +1298,9 @@ export default function CustomerDetailPage() {
         .filter((ex) => ex.name.trim())
         .map((ex) => {
           let exerciseStr = ex.name
-          if (ex.sets && ex.reps) {
-            exerciseStr += ` ${ex.sets}x${ex.reps}`
-          }
+            if (ex.sets && ex.reps) {
+              exerciseStr += ` ${ex.sets}x${ex.reps}`
+            }
           if (ex.weight) {
             exerciseStr += ` @ ${ex.weight}`
           }
@@ -1205,6 +1366,92 @@ export default function CustomerDetailPage() {
       fetchTemplates()
     } catch (error: any) {
       toast.error(error.message || "Failed to delete template")
+    }
+  }
+
+  const handleLikeMessage = async (messageId: string) => {
+    if (likingMessage) return
+    
+    const message = messages.find(m => m.id === messageId)
+    if (!message) return
+    
+    const isLiked = message.isLiked || false
+    setLikingMessage(messageId)
+    
+    try {
+      const response = await fetch(`/api/admin/customers/${customerId}/messages/${messageId}/like`, {
+        method: isLiked ? "DELETE" : "POST",
+      })
+      
+      if (!response.ok) {
+        throw new Error("Failed to like message")
+      }
+      
+      // Update message in state
+      setMessages(prev => prev.map(msg => {
+        if (msg.id === messageId) {
+          const newLikeCount = isLiked ? (msg.likeCount || 1) - 1 : (msg.likeCount || 0) + 1
+          return {
+            ...msg,
+            isLiked: !isLiked,
+            likeCount: newLikeCount,
+          }
+        }
+        return msg
+      }))
+    } catch (error: any) {
+      console.error("Error liking message:", error)
+      toast.error(error.message || "Failed to like message")
+    } finally {
+      setLikingMessage(null)
+    }
+  }
+
+  const handleSendReply = async (messageId: string) => {
+    if (!replyContent.trim() || sendingReply) return
+    
+    const content = replyContent.trim()
+    setReplyContent("")
+    setSendingReply(true)
+    
+    try {
+      const response = await fetch(`/api/admin/customers/${customerId}/messages/${messageId}/replies`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content }),
+      })
+
+      if (!response.ok) {
+        throw new Error("Failed to send reply")
+      }
+
+      const data = await response.json()
+      const newReply = data.reply
+      
+      // Update message with new reply
+      setMessages(prev => prev.map(msg => {
+        if (msg.id === messageId) {
+          // Translate the new reply
+          if (language !== 'en') {
+            translateMessage(`reply-${newReply.id}`, newReply.content)
+          }
+          
+          return {
+            ...msg,
+            replies: [...(msg.replies || []), newReply],
+            replyCount: (msg.replyCount || 0) + 1,
+          }
+        }
+        return msg
+      }))
+      
+      setReplyingTo(null)
+      toast.success("Reply sent")
+    } catch (error: any) {
+      console.error("Error sending reply:", error)
+      toast.error(error.message || "Failed to send reply")
+    } finally {
+      setSendingReply(false)
     }
   }
 
@@ -1325,17 +1572,28 @@ export default function CustomerDetailPage() {
       {/* Workout Summary View */}
       {summaryWorkout && (
         <main className="container mx-auto px-4 py-8">
-          <WorkoutSummaryView
-            workout={summaryWorkout}
-            onBack={() => setSummaryWorkout(null)}
-          />
+        <WorkoutSummaryView
+          workout={summaryWorkout}
+          onBack={() => setSummaryWorkout(null)}
+        />
         </main>
       )}
 
       {/* Main Content */}
       {!summaryWorkout && (
         <main className="container mx-auto px-4 py-8">
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+          <Tabs 
+            value={activeTab} 
+            onValueChange={(value) => {
+            setActiveTab(value)
+              // Clear badge when chat tab is clicked
+            if (value === "chat") {
+              updateLastSeen(new Date().toISOString())
+              fetchUnreadCount()
+            }
+            }} 
+            className="w-full"
+          >
           <TabsList className="grid w-full grid-cols-4 mb-6">
             <TabsTrigger value="workouts" className="gap-2">
               <Calendar className="h-4 w-4" />
@@ -1344,7 +1602,7 @@ export default function CustomerDetailPage() {
             <TabsTrigger value="chat" className="gap-2 relative">
               <div className="relative">
                 <MessageCircle className="h-4 w-4" />
-                {chatUnreadCount > 0 && (
+                {chatUnreadCount > 0 && activeTab !== "chat" && (
                   <span className="absolute -top-1.5 -right-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-destructive text-[10px] font-bold text-destructive-foreground">
                     {chatUnreadCount > 9 ? "9+" : chatUnreadCount}
                   </span>
@@ -1478,10 +1736,10 @@ export default function CustomerDetailPage() {
                         <div className="text-center py-12 border-2 border-dashed rounded-lg bg-muted/30">
                           <Plus className="h-8 w-8 text-muted-foreground mx-auto mb-3" />
                           <p className="text-sm text-muted-foreground mb-3">No exercises added yet</p>
-                          <Button type="button" variant="outline" onClick={addExercise} className="gap-2">
-                            <Plus className="h-4 w-4" />
-                            Add First Exercise
-                          </Button>
+                            <Button type="button" variant="outline" onClick={addExercise} className="gap-2">
+                              <Plus className="h-4 w-4" />
+                              Add First Exercise
+                            </Button>
                         </div>
                       ) : (
                         <div className="space-y-4">
@@ -1665,38 +1923,175 @@ export default function CustomerDetailPage() {
                       <p className="text-muted-foreground">No messages yet. Start the conversation!</p>
                     </div>
                   ) : (
-                    messages.map((message) => (
+                    <>
+                      {/* Load More Button */}
+                      {hasMoreMessages && (
+                        <div className="flex justify-center py-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={handleLoadMore}
+                            disabled={loadingMore}
+                            className="gap-2"
+                          >
+                            {loadingMore ? (
+                              <>
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                                Loading...
+                              </>
+                            ) : (
+                              "Load More Messages"
+                            )}
+                          </Button>
+                        </div>
+                      )}
+                      {messages.map((message) => (
                       <div
                         key={message.id}
-                        className={`flex ${message.sender === "admin" ? "justify-end" : "justify-start"}`}
+                        className={`flex flex-col ${message.sender === "admin" ? "items-end" : "items-start"} ${
+                          replyingTo === message.id ? "ring-2 ring-primary/30 rounded-lg p-2 -m-2" : ""
+                        } transition-all`}
                       >
                         <div
                           className={`flex max-w-[80%] gap-2 ${message.sender === "admin" ? "flex-row-reverse" : "flex-row"}`}
                         >
-                          <div className="space-y-1">
+                          <div className="space-y-1 flex-1 min-w-0">
                             <Card
                               className={`p-3 ${
                                 message.sender === "admin" ? "bg-primary text-primary-foreground" : "bg-card"
-                              }`}
+                              } ${
+                                replyingTo === message.id ? "ring-2 ring-primary/50" : ""
+                              } transition-all`}
                             >
-                              <p className="text-sm leading-relaxed">
-                                {translatedMessages[message.id] || message.content}
+                              <p className="text-sm leading-relaxed whitespace-pre-wrap break-words">
+                                {language === 'en' 
+                                  ? message.content 
+                                  : (translatedMessages[message.id] || message.content)
+                                }
                               </p>
                             </Card>
-                            <p
-                              className={`text-xs text-muted-foreground ${message.sender === "admin" ? "text-right" : "text-left"}`}
-                            >
+                            <div className={`flex items-center gap-2 flex-wrap ${message.sender === "admin" ? "justify-end" : "justify-start"}`}>
+                              <p className="text-xs text-muted-foreground">
                               {new Date(message.created_at).toLocaleTimeString("en-US", {
                                 hour: "numeric",
                                 minute: "2-digit",
                               })}
                             </p>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 px-2 text-xs hover:bg-muted"
+                                onClick={() => handleLikeMessage(message.id)}
+                                disabled={likingMessage === message.id}
+                              >
+                                <Heart className={`h-3.5 w-3.5 mr-1 transition-colors ${message.isLiked ? "fill-red-500 text-red-500" : ""}`} />
+                                {message.likeCount || 0}
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className={`h-7 px-2 text-xs hover:bg-muted ${
+                                  replyingTo === message.id ? "bg-primary/10 text-primary" : ""
+                                } ${(message.replyCount || 0) > 0 ? "font-semibold" : ""}`}
+                                onClick={() => setReplyingTo(replyingTo === message.id ? null : message.id)}
+                              >
+                                <Reply className={`h-3.5 w-3.5 mr-1 ${replyingTo === message.id ? "text-primary" : ""}`} />
+                                {message.replyCount || 0}
+                              </Button>
+                          </div>
+                            
+                            {/* Replies */}
+                            {message.replies && message.replies.length > 0 && (
+                              <div className="mt-3 space-y-2 ml-4 border-l-2 border-primary/30 pl-3">
+                                {message.replies.map((reply) => (
+                                  <div key={reply.id} className="flex items-start gap-2 group">
+                                    <div className="flex-1 min-w-0">
+                                      <div className="flex items-center gap-2 mb-1">
+                                        <span className="text-xs font-semibold text-foreground">
+                                          {reply.sender === "admin" ? "You" : "Customer"}
+                                        </span>
+                                        <span className="text-xs text-muted-foreground">
+                                          {new Date(reply.created_at).toLocaleTimeString("en-US", {
+                                            hour: "numeric",
+                                            minute: "2-digit",
+                                          })}
+                                        </span>
+                        </div>
+                                      <Card className="p-2 bg-muted/50 border-muted">
+                                        <p className="text-xs leading-relaxed text-foreground whitespace-pre-wrap break-words">
+                                          {reply.content}
+                                        </p>
+                                      </Card>
+                      </div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                            
+                            {/* Reply Input */}
+                            {replyingTo === message.id && (
+                              <div className="mt-3 ml-4 space-y-2" data-reply-to={message.id}>
+                                <div className="rounded-lg border-2 border-primary/50 bg-primary/5 p-2">
+                                  <div className="flex items-start gap-2 mb-2">
+                                    <Reply className="h-3 w-3 mt-0.5 text-primary flex-shrink-0" />
+                                    <div className="flex-1 min-w-0">
+                                      <p className="text-xs font-medium text-primary mb-1">Replying to:</p>
+                                      <p className="text-xs text-muted-foreground line-clamp-2">
+                                        {language === 'en' 
+                                          ? message.content 
+                                          : (translatedMessages[message.id] || message.content)
+                                        }
+                                      </p>
+                                    </div>
+                                  </div>
+                                  <div className="flex gap-2">
+                                    <Input
+                                      value={replyContent}
+                                      onChange={(e) => setReplyContent(e.target.value)}
+                                      onKeyDown={(e) => {
+                                        if (e.key === "Enter" && !e.shiftKey) {
+                                          e.preventDefault()
+                                          handleSendReply(message.id)
+                                        }
+                                      }}
+                                      placeholder="Type your reply..."
+                                      className="flex-1 text-sm h-9 bg-background"
+                                      autoFocus
+                                    />
+                                    <Button
+                                      size="sm"
+                                      onClick={() => handleSendReply(message.id)}
+                                      disabled={!replyContent.trim() || sendingReply}
+                                      className="h-9"
+                                    >
+                                      {sendingReply ? (
+                                        <Loader2 className="h-4 w-4 animate-spin" />
+                                      ) : (
+                                        <Send className="h-4 w-4" />
+                                      )}
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      variant="ghost"
+                                      onClick={() => {
+                                        setReplyingTo(null)
+                                        setReplyContent("")
+                                      }}
+                                      className="h-9"
+                                    >
+                                      Cancel
+                                    </Button>
+                                  </div>
+                                </div>
+                              </div>
+                            )}
                           </div>
                         </div>
                       </div>
-                    ))
-                  )}
+                    ))}
                   <div ref={messagesEndRef} />
+                  </>
+                  )}
                 </div>
                 <div className="flex gap-2">
                   <Input
@@ -1721,7 +2116,7 @@ export default function CustomerDetailPage() {
                 <h2 className="text-2xl font-semibold">{t("admin.nutritionTargets")}</h2>
                 <p className="text-sm text-muted-foreground">{t("admin.setDailyGoals")}</p>
               </div>
-              <Dialog open={isNutritionDialogOpen} onOpenChange={setIsNutritionDialogOpen}>
+            <Dialog open={isNutritionDialogOpen} onOpenChange={setIsNutritionDialogOpen}>
                 <DialogTrigger asChild>
                   <Button className="gap-2">
                     <Plus className="h-4 w-4" />
@@ -1730,76 +2125,76 @@ export default function CustomerDetailPage() {
                 </DialogTrigger>
                 <DialogContent>
                   <DialogHeader>
-                    <DialogTitle>{nutritionTarget ? t("admin.updateDailyTargets") : t("admin.setDailyTargets")}</DialogTitle>
-                    <DialogDescription>
-                      {t("admin.setCalorieMacroTargets")}
-                    </DialogDescription>
-                  </DialogHeader>
+                  <DialogTitle>{nutritionTarget ? t("admin.updateDailyTargets") : t("admin.setDailyTargets")}</DialogTitle>
+                  <DialogDescription>
+                    {t("admin.setCalorieMacroTargets")}
+                  </DialogDescription>
+                </DialogHeader>
                   <form onSubmit={handleSaveNutrition} className="space-y-4">
                     <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="calories">{t("nutrition.calories")} ({t("nutrition.kcal")})</Label>
-                        <Input
-                          id="calories"
-                          type="number"
-                          value={nutritionForm.calories}
-                          onChange={(e) => setNutritionForm({ ...nutritionForm, calories: e.target.value })}
-                          required
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="protein">{t("nutrition.protein")} ({t("nutrition.g")})</Label>
-                        <Input
-                          id="protein"
-                          type="number"
-                          value={nutritionForm.protein}
-                          onChange={(e) => setNutritionForm({ ...nutritionForm, protein: e.target.value })}
-                          required
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="carbs">{t("nutrition.carbs")} ({t("nutrition.g")})</Label>
-                        <Input
-                          id="carbs"
-                          type="number"
-                          value={nutritionForm.carbs}
-                          onChange={(e) => setNutritionForm({ ...nutritionForm, carbs: e.target.value })}
-                          required
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="fats">{t("nutrition.fats")} ({t("nutrition.g")})</Label>
-                        <Input
-                          id="fats"
-                          type="number"
-                          value={nutritionForm.fats}
-                          onChange={(e) => setNutritionForm({ ...nutritionForm, fats: e.target.value })}
-                          required
-                        />
-                      </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="calories">{t("nutrition.calories")} ({t("nutrition.kcal")})</Label>
+                      <Input
+                        id="calories"
+                        type="number"
+                        value={nutritionForm.calories}
+                        onChange={(e) => setNutritionForm({ ...nutritionForm, calories: e.target.value })}
+                        required
+                      />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="suggestions">{t("nutrition.suggestions")}</Label>
-                      <Textarea
-                        id="suggestions"
-                        value={nutritionForm.suggestions}
-                        onChange={(e) => setNutritionForm({ ...nutritionForm, suggestions: e.target.value })}
-                        placeholder={t("admin.suggestMeals")}
-                        rows={6}
+                      <Label htmlFor="protein">{t("nutrition.protein")} ({t("nutrition.g")})</Label>
+                      <Input
+                        id="protein"
+                        type="number"
+                        value={nutritionForm.protein}
+                        onChange={(e) => setNutritionForm({ ...nutritionForm, protein: e.target.value })}
+                        required
                       />
-                      <p className="text-xs text-muted-foreground">
-                        {t("admin.listMeals")}
-                      </p>
                     </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="carbs">{t("nutrition.carbs")} ({t("nutrition.g")})</Label>
+                      <Input
+                        id="carbs"
+                        type="number"
+                        value={nutritionForm.carbs}
+                        onChange={(e) => setNutritionForm({ ...nutritionForm, carbs: e.target.value })}
+                        required
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="fats">{t("nutrition.fats")} ({t("nutrition.g")})</Label>
+                      <Input
+                        id="fats"
+                        type="number"
+                        value={nutritionForm.fats}
+                        onChange={(e) => setNutritionForm({ ...nutritionForm, fats: e.target.value })}
+                        required
+                      />
+                    </div>
+                  </div>
+                    <div className="space-y-2">
+                    <Label htmlFor="suggestions">{t("nutrition.suggestions")}</Label>
+                    <Textarea
+                      id="suggestions"
+                      value={nutritionForm.suggestions}
+                      onChange={(e) => setNutritionForm({ ...nutritionForm, suggestions: e.target.value })}
+                      placeholder={t("admin.suggestMeals")}
+                      rows={6}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      {t("admin.listMeals")}
+                    </p>
+                  </div>
                     <div className="flex justify-end gap-2">
-                      <Button type="button" variant="outline" onClick={() => setIsNutritionDialogOpen(false)}>
-                        {t("common.cancel")}
-                      </Button>
-                      <Button type="submit">{t("admin.saveTargets")}</Button>
-                    </div>
-                  </form>
-                </DialogContent>
-              </Dialog>
+                    <Button type="button" variant="outline" onClick={() => setIsNutritionDialogOpen(false)}>
+                      {t("common.cancel")}
+                    </Button>
+                    <Button type="submit">{t("admin.saveTargets")}</Button>
+                  </div>
+                </form>
+              </DialogContent>
+            </Dialog>
             </div>
 
             {nutritionTarget ? (
@@ -1810,10 +2205,10 @@ export default function CustomerDetailPage() {
                     <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
                       <Apple className="h-5 w-5 text-primary" />
                     </div>
-                    <div>
+            <div>
                       <h2 className="font-semibold text-foreground">Daily Targets</h2>
                       <p className="text-sm text-muted-foreground">Set for this client</p>
-                    </div>
+            </div>
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div>
@@ -1897,17 +2292,17 @@ export default function CustomerDetailPage() {
 
                       {/* Macros - Only show if there are meals with macro data */}
                       {(totalProtein > 0 || totalCarbs > 0 || totalFats > 0) && (
-                        <Card className="bg-card p-6">
-                          <div className="mb-4 flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
+            <Card className="bg-card p-6">
+              <div className="mb-4 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
                                 <Apple className="h-5 w-5 text-primary" />
-                              </div>
-                              <div>
+                  </div>
+                  <div>
                                 <h2 className="font-semibold text-foreground">Macronutrients</h2>
                                 <p className="text-sm text-muted-foreground">{isToday ? "Today's" : selectedDateFormatted + "'s"} progress</p>
-                              </div>
-                            </div>
+                  </div>
+                </div>
                           </div>
 
                           <div className="space-y-4">
@@ -1965,7 +2360,7 @@ export default function CustomerDetailPage() {
                     {mealsDate === new Date().toISOString().split('T')[0] ? "Today's Meals" : `Meals - ${format(new Date(mealsDate), "MMM d, yyyy")}`}
                   </h2>
                   <div className="mt-2 flex items-center gap-2">
-                    <Button
+                    <Button 
                       variant="outline"
                       size="icon"
                       onClick={() => {
@@ -1977,8 +2372,8 @@ export default function CustomerDetailPage() {
                     >
                       <ChevronLeft className="h-4 w-4" />
                     </Button>
-                    <Input
-                      type="date"
+                        <Input
+                          type="date"
                       value={mealsDate}
                       onChange={(e) => setMealsDate(e.target.value)}
                       className="w-auto"
@@ -1996,8 +2391,8 @@ export default function CustomerDetailPage() {
                     >
                       <ChevronRight className="h-4 w-4" />
                     </Button>
-                  </div>
-                </div>
+                      </div>
+                      </div>
                 <div className="flex gap-2">
                   <Button 
                     variant="outline"
@@ -2006,7 +2401,7 @@ export default function CustomerDetailPage() {
                   >
                     <BookOpen className="h-4 w-4" />
                     {t("templates.title")}
-                  </Button>
+                      </Button>
                   <Button onClick={handleAddMeal} className="gap-2">
                     <Plus className="h-4 w-4" />
                     {t("admin.addMeal")}
@@ -2039,13 +2434,13 @@ export default function CustomerDetailPage() {
                           <div className="flex-1">
                             <h3 className="font-semibold text-foreground">{meal.name}</h3>
                             <p className="text-xs text-muted-foreground">{formatTime(meal.time)}</p>
-                          </div>
+                            </div>
                           <div className="flex items-center gap-2">
                             {meal.calories > 0 && (
                               <div className="text-right">
                                 <p className="font-semibold text-foreground">{meal.calories}</p>
                                 <p className="text-xs text-muted-foreground">kcal</p>
-                              </div>
+                          </div>
                             )}
                             <Button
                               variant="ghost"
@@ -2080,8 +2475,8 @@ export default function CustomerDetailPage() {
                               {meal.protein > 0 && <span>Protein: {meal.protein}g</span>}
                               {meal.carbs > 0 && <span>Carbs: {meal.carbs}g</span>}
                               {meal.fats > 0 && <span>Fats: {meal.fats}g</span>}
-                            </div>
-                          </div>
+                        </div>
+                      </div>
                         )}
                       </Card>
                     )
@@ -2106,155 +2501,28 @@ export default function CustomerDetailPage() {
                     <TrendingUp className="h-5 w-5 text-primary" />
                   </div>
                   <div>
-                    <h3 className="font-semibold text-foreground">Weight Goals</h3>
-                    <p className="text-sm text-muted-foreground">Set monthly or weekly weight goals</p>
+                    <h2 className="font-semibold text-foreground">Weight Goals</h2>
+                    <p className="text-sm text-muted-foreground">Your current weight goals</p>
                   </div>
                 </div>
-                <Dialog open={isWeightGoalDialogOpen} onOpenChange={setIsWeightGoalDialogOpen}>
-                  <DialogTrigger asChild>
                     <Button 
                       size="sm" 
                       onClick={() => {
                         setEditingWeightGoal(null)
                         setWeightGoalForm({
                           target_weight: "",
-                          goal_type: "weekly",
+                      goal_type: "monthly",
                           start_date: new Date().toISOString().split('T')[0],
                           end_date: "",
                           notes: ""
                         })
+                    setIsWeightGoalDialogOpen(true)
                       }}
+                  className="bg-primary text-primary-foreground hover:bg-primary/90"
                     >
                       <Plus className="mr-1 h-4 w-4" />
                       Add Goal
                     </Button>
-                  </DialogTrigger>
-                  <DialogContent className="bg-card">
-                    <DialogHeader>
-                      <DialogTitle>{editingWeightGoal ? "Edit Weight Goal" : "Set Weight Goal"}</DialogTitle>
-                      <DialogDescription>
-                        Set a {weightGoalForm.goal_type === "weekly" ? "weekly" : "monthly"} weight goal for this client
-                      </DialogDescription>
-                    </DialogHeader>
-                    <form onSubmit={async (e) => {
-                      e.preventDefault()
-                      try {
-                        const url = editingWeightGoal 
-                          ? `/api/admin/customers/${customerId}/weight-goals`
-                          : `/api/admin/customers/${customerId}/weight-goals`
-                        const method = editingWeightGoal ? "PUT" : "POST"
-                        const body = editingWeightGoal
-                          ? { goal_id: editingWeightGoal.id, ...weightGoalForm }
-                          : weightGoalForm
-
-                        const response = await fetch(url, {
-                          method,
-                          headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify(body),
-                        })
-
-                        if (response.ok) {
-                          toast.success(editingWeightGoal ? "Weight goal updated" : "Weight goal created")
-                          setIsWeightGoalDialogOpen(false)
-                          fetchCustomerData()
-                        } else {
-                          const error = await response.json()
-                          toast.error(error.error || "Failed to save weight goal")
-                        }
-                      } catch (error) {
-                        console.error("Error saving weight goal:", error)
-                        toast.error("Failed to save weight goal")
-                      }
-                    }} className="space-y-4 py-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="goal-type">Goal Type</Label>
-                        <Select
-                          value={weightGoalForm.goal_type}
-                          onValueChange={(value) => {
-                            setWeightGoalForm({ ...weightGoalForm, goal_type: value })
-                            // Auto-calculate end date based on goal type
-                            const start = new Date(weightGoalForm.start_date)
-                            const end = new Date(start)
-                            if (value === "weekly") {
-                              end.setDate(end.getDate() + 7)
-                            } else {
-                              end.setMonth(end.getMonth() + 1)
-                            }
-                            setWeightGoalForm(prev => ({ ...prev, end_date: end.toISOString().split('T')[0] }))
-                          }}
-                        >
-                          <SelectTrigger className="bg-background">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="weekly">Weekly</SelectItem>
-                            <SelectItem value="monthly">Monthly</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="target-weight">Target Weight (lbs)</Label>
-                        <Input
-                          id="target-weight"
-                          type="number"
-                          step="0.1"
-                          className="bg-background"
-                          value={weightGoalForm.target_weight}
-                          onChange={(e) => setWeightGoalForm({ ...weightGoalForm, target_weight: e.target.value })}
-                          required
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="start-date">Start Date</Label>
-                        <Input
-                          id="start-date"
-                          type="date"
-                          className="bg-background"
-                          value={weightGoalForm.start_date}
-                          onChange={(e) => {
-                            const start = new Date(e.target.value)
-                            const end = new Date(start)
-                            if (weightGoalForm.goal_type === "weekly") {
-                              end.setDate(end.getDate() + 7)
-                            } else {
-                              end.setMonth(end.getMonth() + 1)
-                            }
-                            setWeightGoalForm({ 
-                              ...weightGoalForm, 
-                              start_date: e.target.value,
-                              end_date: end.toISOString().split('T')[0]
-                            })
-                          }}
-                          required
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="end-date">End Date</Label>
-                        <Input
-                          id="end-date"
-                          type="date"
-                          className="bg-background"
-                          value={weightGoalForm.end_date}
-                          onChange={(e) => setWeightGoalForm({ ...weightGoalForm, end_date: e.target.value })}
-                          required
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="goal-notes">Notes (Optional)</Label>
-                        <Textarea
-                          id="goal-notes"
-                          className="bg-background"
-                          value={weightGoalForm.notes}
-                          onChange={(e) => setWeightGoalForm({ ...weightGoalForm, notes: e.target.value })}
-                          rows={3}
-                        />
-                      </div>
-                      <Button type="submit" className="w-full">
-                        {editingWeightGoal ? "Update Goal" : "Create Goal"}
-                      </Button>
-                    </form>
-                  </DialogContent>
-                </Dialog>
               </div>
 
               <div className="space-y-3">
@@ -2265,8 +2533,18 @@ export default function CustomerDetailPage() {
                     const startDate = new Date(goal.start_date)
                     const endDate = new Date(goal.end_date)
                     const today = new Date()
+                    today.setHours(0, 0, 0, 0)
+                    startDate.setHours(0, 0, 0, 0)
+                    endDate.setHours(0, 0, 0, 0)
+                    
                     const isActive = today >= startDate && today <= endDate
                     const isPast = today > endDate
+                    const isFuture = today < startDate
+                    
+                    // Calculate days
+                    const totalDays = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24))
+                    const daysRemaining = isPast ? 0 : Math.max(0, Math.ceil((endDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)))
+                    const timeRemainingPercent = totalDays > 0 ? (daysRemaining / totalDays) * 100 : 0
                     
                     // Find current weight (most recent entry within goal period)
                     const currentWeightEntry = weightEntries
@@ -2276,22 +2554,25 @@ export default function CustomerDetailPage() {
                       })
                       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0]
                     
-                    const currentWeight = currentWeightEntry?.weight || null
-                    const progress = currentWeight ? ((currentWeight / goal.target_weight) * 100) : 0
+                    const currentWeight = currentWeightEntry ? currentWeightEntry.weight : null
+                    const targetWeight = goal.target_weight
 
                     return (
                       <div key={goal.id} className="rounded-lg bg-background p-4 border border-border">
-                        <div className="flex items-start justify-between mb-2">
-                          <div>
+                        <div className="mb-2 flex items-start justify-between">
+                          <div className="flex-1">
                             <div className="flex items-center gap-2 mb-1">
                               <span className="font-semibold text-foreground">
                                 {goal.goal_type === "weekly" ? "Weekly" : "Monthly"} Goal
                               </span>
                               {isActive && (
-                                <Badge variant="default" className="text-xs">Active</Badge>
+                                <span className="text-xs bg-primary/20 text-primary px-2 py-0.5 rounded">Active</span>
                               )}
                               {isPast && (
-                                <Badge variant="secondary" className="text-xs">Completed</Badge>
+                                <span className="text-xs bg-muted text-muted-foreground px-2 py-0.5 rounded">Completed</span>
+                              )}
+                              {isFuture && (
+                                <span className="text-xs bg-blue-500/20 text-blue-500 px-2 py-0.5 rounded">Upcoming</span>
                               )}
                             </div>
                             <p className="text-sm text-muted-foreground">
@@ -2301,8 +2582,7 @@ export default function CustomerDetailPage() {
                           <div className="flex gap-2">
                             <Button
                               variant="ghost"
-                              size="icon"
-                              className="h-8 w-8"
+                              size="sm"
                               onClick={() => {
                                 setEditingWeightGoal(goal)
                                 setWeightGoalForm({
@@ -2319,24 +2599,23 @@ export default function CustomerDetailPage() {
                             </Button>
                             <Button
                               variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 text-destructive hover:text-destructive"
+                              size="sm"
                               onClick={async () => {
-                                if (confirm("Are you sure you want to delete this goal?")) {
+                                if (confirm("Are you sure you want to delete this weight goal?")) {
                                   try {
-                                    const response = await fetch(
-                                      `/api/admin/customers/${customerId}/weight-goals?goal_id=${goal.id}`,
-                                      { method: "DELETE" }
-                                    )
+                                    const response = await fetch(`/api/admin/customers/${customerId}/weight-goals?goal_id=${goal.id}`, {
+                                      method: 'DELETE',
+                                    })
                                     if (response.ok) {
-                                      toast.success("Weight goal deleted")
+                                      toast.success("Weight goal deleted successfully")
                                       fetchCustomerData()
                                     } else {
-                                      toast.error("Failed to delete goal")
+                                      const error = await response.json()
+                                      toast.error(error.error || "Failed to delete weight goal")
                                     }
                                   } catch (error) {
-                                    console.error("Error deleting goal:", error)
-                                    toast.error("Failed to delete goal")
+                                    console.error("Error deleting weight goal:", error)
+                                    toast.error("Failed to delete weight goal")
                                   }
                                 }
                               }}
@@ -2348,18 +2627,27 @@ export default function CustomerDetailPage() {
                         <div className="space-y-2">
                           <div className="flex items-center justify-between">
                             <span className="text-sm text-muted-foreground">Target Weight</span>
-                            <span className="font-semibold text-foreground">{goal.target_weight} lbs</span>
+                            <span className="font-semibold text-foreground">{targetWeight.toFixed(1)} kg</span>
                           </div>
-                          {currentWeight && (
-                            <>
+                          
+                          {/* Days Remaining Progress Bar */}
+                          {isActive && (
+                            <div className="space-y-1">
                               <div className="flex items-center justify-between">
-                                <span className="text-sm text-muted-foreground">Current Weight</span>
-                                <span className="font-semibold text-foreground">{currentWeight} lbs</span>
+                                <span className="text-sm text-muted-foreground">Time Remaining</span>
+                                <span className="text-sm font-semibold text-foreground">
+                                  {daysRemaining === 0 
+                                    ? "Today" 
+                                    : daysRemaining === 1 
+                                    ? "1 day left" 
+                                    : `${daysRemaining} days left`}
+                                </span>
                               </div>
-                              <Progress value={Math.min(progress, 100)} className="h-2" />
-                            </>
+                              <Progress value={timeRemainingPercent} className="h-2" />
+                            </div>
                           )}
-                          {!currentWeight && (
+                          
+                          {!currentWeight && !isPast && (
                             <p className="text-xs text-muted-foreground">No weight entries recorded for this period yet.</p>
                           )}
                           {goal.notes && (
@@ -2380,10 +2668,116 @@ export default function CustomerDetailPage() {
                   <TrendingUp className="h-5 w-5 text-primary" />
                 </div>
                 <div>
-                  <h3 className="font-semibold text-foreground">Weight Log</h3>
-                  <p className="text-sm text-muted-foreground">Weight entries over time</p>
+                  <h3 className="font-semibold text-foreground">Weight</h3>
+                  <p className="text-sm text-muted-foreground">Track your weight progress</p>
                 </div>
               </div>
+
+              {/* Weight Progress Chart */}
+              {(() => {
+                // Prepare chart data - sort by date
+                const chartData = weightEntries
+                  .map(entry => ({
+                    date: format(new Date(entry.date), "MMM d"),
+                    fullDate: entry.date,
+                    weight: Number(entry.weight.toFixed(1)),
+                  }))
+                  .sort((a, b) => new Date(a.fullDate).getTime() - new Date(b.fullDate).getTime())
+
+                // Get all weight goals for reference lines (active and future goals)
+                const goalsForChart = weightGoals.filter(goal => {
+                  const today = new Date()
+                  const endDate = new Date(goal.end_date)
+                  // Show goals that haven't ended yet
+                  return today <= endDate
+                }).map(goal => {
+                  const today = new Date()
+                  const endDate = new Date(goal.end_date)
+                  const daysLeft = Math.ceil((endDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+                  return {
+                    ...goal,
+                    daysLeft: daysLeft > 0 ? daysLeft : 0
+                  }
+                })
+
+                return chartData.length > 0 ? (
+                  <div className="mb-6">
+                    {/* Chart Legend */}
+                    {goalsForChart.length > 0 && (
+                      <div className="mb-3 flex items-center gap-4 text-sm">
+                        <div className="flex items-center gap-2">
+                          <div 
+                            className="h-3 w-8 border-t-2 border-dashed" 
+                            style={{ borderColor: "hsl(221.2 83.2% 53.3%)" }}
+                          ></div>
+                          <span className="text-muted-foreground">Target Weight Goal</span>
+                        </div>
+                      </div>
+                    )}
+                    <ChartContainer
+                      config={{
+                        weight: {
+                          label: "Weight",
+                          color: "hsl(142.1 76.2% 36.3%)",
+                        },
+                        target: {
+                          label: "Target",
+                          color: "hsl(221.2 83.2% 53.3%)",
+                        },
+                      }}
+                      className="h-[300px] w-full"
+                    >
+                      <LineChart data={chartData} margin={{ top: 30, right: 10, left: 0, bottom: 0 }}>
+                        <CartesianGrid strokeDasharray="3 3" className="stroke-border/50" />
+                        <XAxis 
+                          dataKey="date" 
+                          className="text-xs fill-muted-foreground"
+                        />
+                        <YAxis 
+                          className="text-xs fill-muted-foreground"
+                          label={{ value: "Weight (kg)", angle: -90, position: 'insideLeft' }}
+                          domain={['auto', 'auto']}
+                        />
+                        <ChartTooltip content={<ChartTooltipContent />} />
+                        <Line 
+                          type="monotone" 
+                          dataKey="weight" 
+                          name="weight"
+                          stroke="var(--color-weight)" 
+                          strokeWidth={3}
+                          dot={{ fill: "var(--color-weight)", r: 5, strokeWidth: 2, stroke: "#fff" }}
+                          activeDot={{ r: 7, strokeWidth: 2, stroke: "#fff" }}
+                          connectNulls={false}
+                        />
+                        {goalsForChart.map((goal) => {
+                          const daysText = goal.daysLeft === 0 
+                            ? "Today" 
+                            : goal.daysLeft === 1 
+                            ? "1 day left" 
+                            : `${goal.daysLeft} days left`
+                          return (
+                            <ReferenceLine 
+                              key={goal.id}
+                              y={goal.target_weight} 
+                              stroke="hsl(221.2 83.2% 53.3%)" 
+                              strokeWidth={2}
+                              strokeDasharray="5 5"
+                              label={{ 
+                                value: `Target: ${goal.target_weight.toFixed(1)} kg (${daysText})`, 
+                                position: "top",
+                                fill: "hsl(221.2 83.2% 53.3%)",
+                                fontSize: 12,
+                                fontWeight: 600,
+                                offset: 10
+                              }}
+                            />
+                          )
+                        })}
+                      </LineChart>
+                    </ChartContainer>
+                  </div>
+                ) : null
+              })()}
 
               <div className="space-y-3">
                 {weightEntries.length === 0 ? (
@@ -2391,10 +2785,10 @@ export default function CustomerDetailPage() {
                 ) : (
                   weightEntries.map((entry) => (
                     <div key={entry.id} className="flex items-center justify-between rounded-lg bg-background p-3">
-                      <span className="text-sm text-muted-foreground">
-                        {format(new Date(entry.date), "MMM d, yyyy")}
-                      </span>
-                      <span className="font-semibold text-foreground">{entry.weight} lbs</span>
+                        <span className="text-sm text-muted-foreground">
+                          {format(new Date(entry.date), "MMM d, yyyy")}
+                        </span>
+                      <span className="font-semibold text-foreground">{entry.weight} kg</span>
                     </div>
                   ))
                 )}
@@ -3034,6 +3428,165 @@ export default function CustomerDetailPage() {
                 </Button>
                 <Button type="submit">
                   {t("admin.updatePassword")}
+                </Button>
+              </div>
+            </form>
+          </DialogContent>
+        </Dialog>
+
+        {/* Add/Edit Weight Goal Dialog */}
+        <Dialog open={isWeightGoalDialogOpen} onOpenChange={setIsWeightGoalDialogOpen}>
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>{editingWeightGoal ? "Edit Weight Goal" : "Add Weight Goal"}</DialogTitle>
+              <DialogDescription>
+                {editingWeightGoal ? "Update weight goal details" : "Set a new weight goal for this customer"}
+              </DialogDescription>
+            </DialogHeader>
+            <form onSubmit={async (e) => {
+              e.preventDefault()
+              if (!weightGoalForm.target_weight || !weightGoalForm.start_date || !weightGoalForm.end_date) {
+                toast.error("Please fill in all required fields")
+                return
+              }
+
+              try {
+                const url = `/api/admin/customers/${customerId}/weight-goals`
+                const method = editingWeightGoal ? 'PUT' : 'POST'
+                const body = editingWeightGoal
+                  ? {
+                      goal_id: editingWeightGoal.id,
+                      target_weight: weightGoalForm.target_weight,
+                      goal_type: weightGoalForm.goal_type,
+                      start_date: weightGoalForm.start_date,
+                      end_date: weightGoalForm.end_date,
+                      notes: weightGoalForm.notes || null,
+                    }
+                  : {
+                      target_weight: weightGoalForm.target_weight,
+                      goal_type: weightGoalForm.goal_type,
+                      start_date: weightGoalForm.start_date,
+                      end_date: weightGoalForm.end_date,
+                      notes: weightGoalForm.notes || null,
+                    }
+
+                const response = await fetch(url, {
+                  method,
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify(body),
+                })
+
+                if (response.ok) {
+                  toast.success(editingWeightGoal ? "Weight goal updated successfully" : "Weight goal created successfully")
+                  setIsWeightGoalDialogOpen(false)
+                  setEditingWeightGoal(null)
+                  setWeightGoalForm({
+                    target_weight: "",
+                    goal_type: "monthly",
+                    start_date: new Date().toISOString().split('T')[0],
+                    end_date: "",
+                    notes: ""
+                  })
+                  fetchCustomerData()
+                } else {
+                  const error = await response.json()
+                  let errorMessage = error.error || "Failed to save weight goal"
+                  
+                  // Handle duplicate constraint error with user-friendly message
+                  if (errorMessage.includes("duplicate key") || errorMessage.includes("unique constraint")) {
+                    errorMessage = "A weight goal with the same type and start date already exists for this customer. Please choose a different start date or goal type."
+                  }
+                  
+                  toast.error(errorMessage)
+                }
+              } catch (error) {
+                console.error("Error saving weight goal:", error)
+                toast.error("Failed to save weight goal")
+              }
+            }} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="weight-goal-target">Target Weight (kg) *</Label>
+                <Input
+                  id="weight-goal-target"
+                  type="number"
+                  step="0.1"
+                  value={weightGoalForm.target_weight}
+                  onChange={(e) => setWeightGoalForm({ ...weightGoalForm, target_weight: e.target.value })}
+                  placeholder="150.0"
+                  required
+                  className="bg-background"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="weight-goal-type">Goal Type *</Label>
+                <Select
+                  value={weightGoalForm.goal_type}
+                  onValueChange={(value: "weekly" | "monthly") => setWeightGoalForm({ ...weightGoalForm, goal_type: value })}
+                >
+                  <SelectTrigger className="bg-background">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="weekly">Weekly</SelectItem>
+                    <SelectItem value="monthly">Monthly</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="weight-goal-start">Start Date *</Label>
+                  <Input
+                    id="weight-goal-start"
+                    type="date"
+                    value={weightGoalForm.start_date}
+                    onChange={(e) => setWeightGoalForm({ ...weightGoalForm, start_date: e.target.value })}
+                    required
+                    className="bg-background"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="weight-goal-end">End Date *</Label>
+                  <Input
+                    id="weight-goal-end"
+                    type="date"
+                    value={weightGoalForm.end_date}
+                    onChange={(e) => setWeightGoalForm({ ...weightGoalForm, end_date: e.target.value })}
+                    required
+                    className="bg-background"
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="weight-goal-notes">Notes (Optional)</Label>
+                <Textarea
+                  id="weight-goal-notes"
+                  value={weightGoalForm.notes}
+                  onChange={(e) => setWeightGoalForm({ ...weightGoalForm, notes: e.target.value })}
+                  placeholder="Add any additional notes about this goal"
+                  rows={3}
+                  className="bg-background resize-none"
+                />
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    setIsWeightGoalDialogOpen(false)
+                    setEditingWeightGoal(null)
+                    setWeightGoalForm({
+                      target_weight: "",
+                      goal_type: "monthly",
+                      start_date: new Date().toISOString().split('T')[0],
+                      end_date: "",
+                      notes: ""
+                    })
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button type="submit">
+                  {editingWeightGoal ? "Update" : "Create"} Goal
                 </Button>
               </div>
             </form>

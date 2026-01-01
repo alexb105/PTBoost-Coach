@@ -91,7 +91,7 @@ export async function GET(
     // Get all PB history for this exercise (from workout completions)
     const { data: workouts, error: workoutsError } = await supabase
       .from('workouts')
-      .select('id, date, exercise_completions, exercises')
+      .select('id, date, title, exercise_completions, exercises')
       .eq('customer_id', customerId)
       .order('date', { ascending: false })
 
@@ -109,10 +109,57 @@ export async function GET(
       completed_at?: string
     }> = []
 
+    // Extract workout history with exercise values
+    const workoutHistory: Array<{
+      workout_id: string
+      workout_date: string
+      workout_title?: string
+      sets?: string
+      reps?: string
+      weight?: string
+      seconds?: string
+      type?: "reps" | "seconds"
+      notes?: string
+      completed_at?: string
+      bestSet?: {
+        reps?: string
+        weight?: string
+        seconds?: string
+      }
+    }> = []
+
+    // Helper to parse exercise string
+    const parseExerciseString = (exerciseStr: string) => {
+      if (!exerciseStr || !exerciseStr.trim()) {
+        return { sets: "", reps: "", type: "reps" as const, weight: "", notes: "" }
+      }
+
+      const parts = exerciseStr.split(" - ")
+      const notes = parts.length > 1 ? parts[1].trim() : ""
+      let mainPart = parts[0].trim()
+      
+      const weightMatch = mainPart.match(/@\s*([^-]+?)(?:\s*-\s*|$)/)
+      let weight = ""
+      if (weightMatch) {
+        weight = weightMatch[1].trim()
+        mainPart = mainPart.replace(/@\s*[^-]+?(\s*-\s*|$)/, "").trim()
+      }
+      
+      const setsRepsMatch = mainPart.match(/(\d+)x([\d-]+)(s)?/)
+      let sets = ""
+      let reps = ""
+      let type: "reps" | "seconds" = "reps"
+      if (setsRepsMatch) {
+        sets = setsRepsMatch[1]
+        reps = setsRepsMatch[2]
+        type = setsRepsMatch[3] === "s" ? "seconds" : "reps"
+      }
+      
+      return { sets, reps, type, weight, notes }
+    }
+
     if (workouts) {
       workouts.forEach(workout => {
-        if (!workout.exercise_completions || !Array.isArray(workout.exercise_completions)) return
-        
         // Find the exercise index in the exercises array (using normalized names for matching)
         const exerciseIndex = workout.exercises?.findIndex(ex => {
           const extractedName = extractAndNormalizeExerciseName(ex)
@@ -120,10 +167,33 @@ export async function GET(
         })
 
         if (exerciseIndex !== undefined && exerciseIndex >= 0) {
-          const completion = workout.exercise_completions.find(
-            (ec: any) => ec.exerciseIndex === exerciseIndex && ec.bestSet
-          )
+          const exerciseStr = workout.exercises[exerciseIndex]
+          const parsedExercise = parseExerciseString(exerciseStr)
           
+          // Get completion data if available
+          let completion = null
+          if (workout.exercise_completions && Array.isArray(workout.exercise_completions)) {
+            completion = workout.exercise_completions.find(
+              (ec: any) => ec.exerciseIndex === exerciseIndex
+            )
+          }
+
+          // Add to workout history
+          workoutHistory.push({
+            workout_id: workout.id,
+            workout_date: workout.date,
+            workout_title: (workout as any).title,
+            sets: parsedExercise.sets,
+            reps: parsedExercise.reps,
+            weight: parsedExercise.weight,
+            seconds: parsedExercise.type === "seconds" ? parsedExercise.reps : undefined,
+            type: parsedExercise.type,
+            notes: parsedExercise.notes,
+            completed_at: completion?.completed_at,
+            bestSet: completion?.bestSet,
+          })
+
+          // Also add to PB history if there's a best set
           if (completion && completion.bestSet) {
             pbHistory.push({
               workout_id: workout.id,
@@ -143,6 +213,11 @@ export async function GET(
       history: pbHistory.sort((a, b) => {
         const dateA = new Date(a.completed_at || a.workout_date).getTime()
         const dateB = new Date(b.completed_at || b.workout_date).getTime()
+        return dateB - dateA // Most recent first
+      }),
+      workoutHistory: workoutHistory.sort((a, b) => {
+        const dateA = new Date(a.workout_date).getTime()
+        const dateB = new Date(b.workout_date).getTime()
         return dateB - dateA // Most recent first
       }),
     }, { status: 200 })

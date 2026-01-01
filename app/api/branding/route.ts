@@ -20,6 +20,7 @@ export async function GET(request: NextRequest) {
           logo_url: null,
           secondary_color: '#3b82f6',
           admin_profile_picture_url: null,
+          admin_name: null,
         })
       }
       throw error
@@ -31,6 +32,7 @@ export async function GET(request: NextRequest) {
       logo_url: null,
       secondary_color: '#3b82f6',
       admin_profile_picture_url: null,
+      admin_name: null,
     })
   } catch (error: any) {
     console.error('Error fetching branding settings:', error)
@@ -41,6 +43,7 @@ export async function GET(request: NextRequest) {
       logo_url: null,
       secondary_color: '#3b82f6',
       admin_profile_picture_url: null,
+      admin_name: null,
     })
   }
 }

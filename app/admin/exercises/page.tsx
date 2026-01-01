@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -21,11 +22,28 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 
 interface Exercise {
   id: string
   name: string
   display_name: string
+  exercise_type?: "cardio" | "sets"
+  default_sets?: number | null
+  default_reps?: string | null
+  default_weight?: string | null
+  default_duration_minutes?: number | null
+  default_distance_km?: number | null
+  default_intensity?: string | null
+  image_url?: string | null
+  video_url?: string | null
+  description?: string | null
   created_at: string
   updated_at: string
 }
@@ -40,7 +58,11 @@ export default function ExercisesPage() {
   const [exerciseToDelete, setExerciseToDelete] = useState<Exercise | null>(null)
   const [exerciseForm, setExerciseForm] = useState({
     name: "",
-    display_name: "",
+    exercise_type: "sets" as "cardio" | "sets",
+    // Media
+    image_url: "",
+    video_url: "",
+    description: "",
   })
 
   // Check admin session
@@ -88,13 +110,41 @@ export default function ExercisesPage() {
       
       const method = editingExercise ? "PUT" : "POST"
 
+      // Ensure exercise_type is always set and valid
+      // Get the raw value and normalize it
+      const rawType = exerciseForm.exercise_type
+      console.log('Raw exercise_type from form:', rawType, typeof rawType)
+      
+      const exerciseType = (rawType && ['cardio', 'sets'].includes(String(rawType).trim().toLowerCase())) 
+        ? String(rawType).trim().toLowerCase() 
+        : 'sets'
+      
+      console.log('Normalized exercise_type:', exerciseType)
+
+      if (!['cardio', 'sets'].includes(exerciseType)) {
+        toast.error('Invalid exercise type: ' + exerciseType)
+        return
+      }
+
+      const payload: any = {
+        name: exerciseForm.name,
+        display_name: exerciseForm.name,
+        exercise_type: exerciseType,
+      }
+
+      console.log('Sending exercise payload:', JSON.stringify(payload, null, 2))
+
+      // Add media URLs
+      if (exerciseForm.image_url) payload.image_url = exerciseForm.image_url.trim() || null
+      if (exerciseForm.video_url) payload.video_url = exerciseForm.video_url.trim() || null
+      
+      // Add description
+      if (exerciseForm.description) payload.description = exerciseForm.description.trim() || null
+
       const response = await fetch(url, {
         method,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: exerciseForm.name,
-          display_name: exerciseForm.display_name || exerciseForm.name,
-        }),
+        body: JSON.stringify(payload),
       })
 
       if (!response.ok) {
@@ -105,7 +155,13 @@ export default function ExercisesPage() {
       toast.success(editingExercise ? "Exercise updated successfully" : "Exercise created successfully")
       setIsDialogOpen(false)
       setEditingExercise(null)
-      setExerciseForm({ name: "", display_name: "" })
+      setExerciseForm({
+        name: "",
+        exercise_type: "sets",
+        image_url: "",
+        video_url: "",
+        description: "",
+      })
       fetchExercises()
     } catch (error: any) {
       console.error("Error saving exercise:", error)
@@ -117,7 +173,10 @@ export default function ExercisesPage() {
     setEditingExercise(exercise)
     setExerciseForm({
       name: exercise.display_name, // Show display name for editing
-      display_name: exercise.display_name,
+      exercise_type: exercise.exercise_type || "sets",
+      image_url: exercise.image_url || "",
+      video_url: exercise.video_url || "",
+      description: exercise.description || "",
     })
     setIsDialogOpen(true)
   }
@@ -153,7 +212,13 @@ export default function ExercisesPage() {
   const handleDialogClose = () => {
     setIsDialogOpen(false)
     setEditingExercise(null)
-    setExerciseForm({ name: "", display_name: "" })
+    setExerciseForm({
+      name: "",
+      exercise_type: "sets",
+      image_url: "",
+      video_url: "",
+      description: "",
+    })
   }
 
   return (
@@ -190,12 +255,21 @@ export default function ExercisesPage() {
               Manage exercises that can be used across all clients. Each client has their own PB data.
             </p>
           </div>
-          <Dialog open={isDialogOpen} onOpenChange={handleDialogClose}>
+          <Dialog open={isDialogOpen} onOpenChange={(open) => {
+            if (open) {
+              setEditingExercise(null)
+              setExerciseForm({
+                name: "",
+                exercise_type: "sets",
+                image_url: "",
+                video_url: "",
+                description: "",
+              })
+            }
+            setIsDialogOpen(open)
+          }}>
             <DialogTrigger asChild>
-              <Button className="gap-2" onClick={() => {
-                setEditingExercise(null)
-                setExerciseForm({ name: "", display_name: "" })
-              }}>
+              <Button className="gap-2">
                 <Plus className="h-4 w-4" />
                 Add Exercise
               </Button>
@@ -222,23 +296,71 @@ export default function ExercisesPage() {
                     onChange={(e) => setExerciseForm({ ...exerciseForm, name: e.target.value })}
                     required
                   />
-                  <p className="text-xs text-muted-foreground">
-                    This name will be normalized (lowercase) for matching. The display name will be automatically formatted.
-                  </p>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="display_name">Display Name (Optional)</Label>
-                  <Input
-                    id="display_name"
-                    type="text"
-                    placeholder="Leave empty to auto-format"
-                    value={exerciseForm.display_name}
-                    onChange={(e) => setExerciseForm({ ...exerciseForm, display_name: e.target.value })}
-                  />
+                  <Label htmlFor="exercise_type">Exercise Type *</Label>
+                  <Select
+                    value={exerciseForm.exercise_type || "sets"}
+                    onValueChange={(value: "cardio" | "sets") => 
+                      setExerciseForm({ ...exerciseForm, exercise_type: value as "cardio" | "sets" })
+                    }
+                  >
+                    <SelectTrigger id="exercise_type">
+                      <SelectValue placeholder="Select exercise type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="sets">Sets</SelectItem>
+                      <SelectItem value="cardio">Cardio</SelectItem>
+                    </SelectContent>
+                  </Select>
                   <p className="text-xs text-muted-foreground">
-                    Custom display name. If empty, the exercise name will be auto-formatted.
+                    Choose whether this is a sets exercise (with sets/reps/weight) or cardio (with duration/distance).
                   </p>
                 </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="image_url">Image URL (Optional)</Label>
+                  <Input
+                    id="image_url"
+                    type="url"
+                    placeholder="https://example.com/image.jpg"
+                    value={exerciseForm.image_url}
+                    onChange={(e) => setExerciseForm({ ...exerciseForm, image_url: e.target.value })}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    URL to an image demonstrating the exercise
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="video_url">Video URL (Optional)</Label>
+                  <Input
+                    id="video_url"
+                    type="url"
+                    placeholder="https://youtube.com/watch?v=..."
+                    value={exerciseForm.video_url}
+                    onChange={(e) => setExerciseForm({ ...exerciseForm, video_url: e.target.value })}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    URL to a video demonstrating the exercise (YouTube, Vimeo, etc.)
+                  </p>
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="description">Description (Optional)</Label>
+                  <Textarea
+                    id="description"
+                    placeholder="Enter a detailed description of the exercise. This will be shown in the exercise info modal below the video."
+                    value={exerciseForm.description}
+                    onChange={(e) => setExerciseForm({ ...exerciseForm, description: e.target.value })}
+                    rows={4}
+                    className="resize-none"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Detailed description that will appear below the video in the exercise info modal
+                  </p>
+                </div>
+
                 <div className="flex justify-end gap-2">
                   <Button type="button" variant="outline" onClick={handleDialogClose}>
                     Cancel
@@ -263,7 +385,17 @@ export default function ExercisesPage() {
               <div className="flex flex-col items-center justify-center py-12">
                 <Dumbbell className="h-12 w-12 text-muted-foreground mb-4" />
                 <p className="text-muted-foreground mb-4">No exercises yet</p>
-                <Button onClick={() => setIsDialogOpen(true)} className="gap-2">
+                <Button onClick={() => {
+                  setEditingExercise(null)
+                  setExerciseForm({
+                    name: "",
+                    exercise_type: "sets",
+                    image_url: "",
+                    video_url: "",
+                    description: "",
+                  })
+                  setIsDialogOpen(true)
+                }} className="gap-2">
                   <Plus className="h-4 w-4" />
                   Add Your First Exercise
                 </Button>
@@ -273,6 +405,7 @@ export default function ExercisesPage() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Display Name</TableHead>
+                    <TableHead>Type</TableHead>
                     <TableHead>Normalized Name</TableHead>
                     <TableHead>Created</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
@@ -283,6 +416,15 @@ export default function ExercisesPage() {
                     <TableRow key={exercise.id}>
                       <TableCell className="font-medium">
                         {exercise.display_name}
+                      </TableCell>
+                      <TableCell>
+                        <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                          exercise.exercise_type === "cardio" 
+                            ? "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200"
+                            : "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200"
+                        }`}>
+                          {exercise.exercise_type === "cardio" ? "Cardio" : "Sets"}
+                        </span>
                       </TableCell>
                       <TableCell className="text-muted-foreground text-sm font-mono">
                         {exercise.name}

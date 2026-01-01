@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react"
-import { Send, Loader2 } from "lucide-react"
+import { Send, Loader2, Heart, Reply } from "lucide-react"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -9,6 +9,24 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { toast } from "sonner"
 import { useMessageNotifications } from "@/hooks/use-message-notifications"
 import { useLanguage } from "@/contexts/language-context"
+import { formatMessageWithLinks } from "@/lib/format-message"
+
+interface MessageLike {
+  id: string
+  message_id: string
+  customer_id: string
+  liked_by: "admin" | "customer"
+  created_at: string
+}
+
+interface MessageReply {
+  id: string
+  message_id: string
+  customer_id: string
+  sender: "admin" | "customer"
+  content: string
+  created_at: string
+}
 
 interface Message {
   id: string
@@ -16,6 +34,11 @@ interface Message {
   sender: "admin" | "customer"
   content: string
   created_at: string
+  likes?: MessageLike[]
+  replies?: MessageReply[]
+  likeCount?: number
+  replyCount?: number
+  isLiked?: boolean
 }
 
 export function ChatInterface() {
@@ -28,17 +51,32 @@ export function ChatInterface() {
   const messagesContainerRef = useRef<HTMLDivElement>(null)
   const { updateLastSeen, fetchUnreadCount } = useMessageNotifications({ isViewingChat: true })
   const [translatedMessages, setTranslatedMessages] = useState<Record<string, string>>({})
+  const [translatedReplies, setTranslatedReplies] = useState<Record<string, string>>({})
   const [isUserAtBottom, setIsUserAtBottom] = useState(true)
   const previousMessagesLengthRef = useRef<number>(0)
   const [adminProfilePicture, setAdminProfilePicture] = useState<string | null>(null)
+  const [adminName, setAdminName] = useState<string | null>(null)
   const translatingRef = useRef<Set<string>>(new Set()) // Track messages currently being translated
   const translationQueueRef = useRef<Array<{ messageId: string; text: string }>>([])
   const isProcessingQueueRef = useRef<boolean>(false)
+  const [replyingTo, setReplyingTo] = useState<string | null>(null)
+  const [replyContent, setReplyContent] = useState("")
+  const [sendingReply, setSendingReply] = useState(false)
+  const [likingMessage, setLikingMessage] = useState<string | null>(null)
+  const replyingToRef = useRef<string | null>(null)
+  const [hasMoreMessages, setHasMoreMessages] = useState(false)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const [isUserAtTop, setIsUserAtTop] = useState(false)
 
   const translateMessage = async (messageId: string, text: string) => {
+    const isReply = messageId.startsWith('reply-')
+    // For replies, use the reply ID (without 'reply-' prefix) for lookup
+    const lookupKey = isReply ? messageId.replace('reply-', '') : messageId
+    const translationState = isReply ? translatedReplies : translatedMessages
+    
     // Don't translate if already translated
-    if (translatedMessages[messageId]) {
-      return translatedMessages[messageId]
+    if (translationState[lookupKey]) {
+      return translationState[lookupKey]
     }
 
     // Don't translate if already being translated
@@ -88,9 +126,11 @@ export function ChatInterface() {
       if (!item) break
 
       const { messageId, text } = item
+      const isReply = messageId.startsWith('reply-')
+      const translationState = isReply ? translatedReplies : translatedMessages
 
       // Skip if already translated or currently translating
-      if (translatedMessages[messageId] || translatingRef.current.has(messageId)) {
+      if (translationState[messageId] || translatingRef.current.has(messageId)) {
         continue
       }
 
@@ -110,18 +150,27 @@ export function ChatInterface() {
           
           // Always update translation state, even if same (to mark as processed)
           if (translated) {
-            setTranslatedMessages(prev => {
-              const updated = { ...prev, [messageId]: translated }
-              // Log for debugging in development
-              if (process.env.NODE_ENV === 'development') {
-                console.log(`Translated message ${messageId}:`, {
-                  original: text.substring(0, 50),
-                  translated: translated.substring(0, 50),
-                  same: translated === text
-                })
-              }
-              return updated
-            })
+            if (isReply) {
+              // Store with reply ID (without 'reply-' prefix) for easier lookup
+              const replyId = messageId.replace('reply-', '')
+              setTranslatedReplies(prev => {
+                const updated = { ...prev, [replyId]: translated }
+                return updated
+              })
+            } else {
+              setTranslatedMessages(prev => {
+                const updated = { ...prev, [messageId]: translated }
+                // Log for debugging in development
+                if (process.env.NODE_ENV === 'development') {
+                  console.log(`Translated message ${messageId}:`, {
+                    original: text.substring(0, 50),
+                    translated: translated.substring(0, 50),
+                    same: translated === text
+                  })
+                }
+                return updated
+              })
+            }
           }
         } else {
           // Log non-OK responses for debugging
@@ -150,30 +199,93 @@ export function ChatInterface() {
     isProcessingQueueRef.current = false
   }
 
-  const fetchMessages = async () => {
+  const fetchMessages = async (beforeDate?: string) => {
     try {
-      const response = await fetch("/api/customer/messages")
+      const url = beforeDate 
+        ? `/api/customer/messages?before=${encodeURIComponent(beforeDate)}&limit=10`
+        : "/api/customer/messages?limit=10"
+      
+      const response = await fetch(url)
       if (response.ok) {
         const data = await response.json()
         const fetchedMessages = data.messages || []
-        setMessages(fetchedMessages)
+        const hasMore = data.hasMore || false
         
-        // Always translate messages (to user's selected language, even if it's English)
-        // Use setTimeout to ensure state is updated before translating
-        setTimeout(() => {
-          fetchedMessages.forEach((message: Message) => {
-            // Only translate if not already translated and not in queue
-            if (!translatedMessages[message.id] && 
-                !translatingRef.current.has(message.id) &&
-                !translationQueueRef.current.find(item => item.messageId === message.id)) {
-              translateMessage(message.id, message.content)
+        if (beforeDate) {
+          // Loading more - prepend older messages
+          setMessages(prev => [...fetchedMessages, ...prev])
+          setHasMoreMessages(hasMore)
+          
+          // Translate from most recent to oldest (prioritize newest messages)
+          // Use setTimeout to ensure state is updated before translating
+          setTimeout(() => {
+            setMessages(currentMessages => {
+              // Get all messages in reverse order (newest first) for translation
+              const messagesToTranslate = [...currentMessages].reverse()
+              messagesToTranslate.forEach((message: Message) => {
+                // Only translate if not already translated and not in queue
+                if (!translatedMessages[message.id] && 
+                    !translatingRef.current.has(message.id) &&
+                    !translationQueueRef.current.find(item => item.messageId === message.id)) {
+                  translateMessage(message.id, message.content)
+                }
+                
+                // Translate replies for this message (newest first)
+                if (message.replies && message.replies.length > 0) {
+                  const repliesToTranslate = [...message.replies].reverse()
+                  repliesToTranslate.forEach((reply) => {
+                    if (!translatedReplies[reply.id] && 
+                        !translatingRef.current.has(`reply-${reply.id}`) &&
+                        !translationQueueRef.current.find(item => item.messageId === `reply-${reply.id}`)) {
+                      translateMessage(`reply-${reply.id}`, reply.content)
+                    }
+                  })
+                }
+              })
+              // Ensure queue processing starts
+              if (!isProcessingQueueRef.current && translationQueueRef.current.length > 0) {
+                processTranslationQueue()
+              }
+              return currentMessages // Return unchanged
+            })
+          }, 100)
+        } else {
+          // Initial load - replace all messages
+          setMessages(fetchedMessages)
+          setHasMoreMessages(hasMore)
+          
+          // Always translate messages (to user's selected language, even if it's English)
+          // Translate from most recent to oldest (reverse order)
+          // Use setTimeout to ensure state is updated before translating
+          setTimeout(() => {
+            // Reverse the messages array to translate newest first
+            const messagesToTranslate = [...fetchedMessages].reverse()
+            messagesToTranslate.forEach((message: Message) => {
+              // Only translate if not already translated and not in queue
+              if (!translatedMessages[message.id] && 
+                  !translatingRef.current.has(message.id) &&
+                  !translationQueueRef.current.find(item => item.messageId === message.id)) {
+                translateMessage(message.id, message.content)
+              }
+              
+              // Translate replies for this message (newest first)
+              if (message.replies && message.replies.length > 0) {
+                const repliesToTranslate = [...message.replies].reverse()
+                repliesToTranslate.forEach((reply) => {
+                  if (!translatedReplies[reply.id] && 
+                      !translatingRef.current.has(`reply-${reply.id}`) &&
+                      !translationQueueRef.current.find(item => item.messageId === `reply-${reply.id}`)) {
+                    translateMessage(`reply-${reply.id}`, reply.content)
+                  }
+                })
+              }
+            })
+            // Ensure queue processing starts
+            if (!isProcessingQueueRef.current && translationQueueRef.current.length > 0) {
+              processTranslationQueue()
             }
-          })
-          // Ensure queue processing starts
-          if (!isProcessingQueueRef.current && translationQueueRef.current.length > 0) {
-            processTranslationQueue()
-          }
-        }, 100)
+          }, 100)
+        }
         
         // Update last seen timestamp to the most recent message
         if (fetchedMessages.length > 0) {
@@ -208,6 +320,10 @@ export function ChatInterface() {
       }
     }
 
+    // Immediately clear badge on mount
+    updateLastSeen(new Date().toISOString())
+    fetchUnreadCount()
+    
     fetchMessagesSafe()
     fetchAdminProfilePicture()
 
@@ -224,6 +340,7 @@ export function ChatInterface() {
       isMounted = false
       clearInterval(interval)
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const fetchAdminProfilePicture = async () => {
@@ -232,11 +349,13 @@ export function ChatInterface() {
       if (response.ok) {
         const data = await response.json()
         setAdminProfilePicture(data.admin_profile_picture_url || "/trainer-avatar.jpg")
+        setAdminName(data.admin_name || null)
       }
     } catch (error) {
       console.error("Failed to fetch admin profile picture:", error)
       // Fallback to default
       setAdminProfilePicture("/trainer-avatar.jpg")
+      setAdminName(null)
     }
   }
 
@@ -245,14 +364,25 @@ export function ChatInterface() {
     if (messages.length > 0) {
       // Clear existing translations and re-translate when language changes
       setTranslatedMessages({})
+      setTranslatedReplies({})
       translationQueueRef.current = []
       translatingRef.current.clear()
       isProcessingQueueRef.current = false
       
       // Add all messages to queue with a delay to avoid rate limiting
+      // Translate from most recent to oldest (prioritize newest messages)
       setTimeout(() => {
-        messages.forEach((message) => {
+        const messagesToTranslate = [...messages].reverse() // Newest first
+        messagesToTranslate.forEach((message) => {
           translateMessage(message.id, message.content)
+          
+          // Translate replies for this message (newest first)
+          if (message.replies && message.replies.length > 0) {
+            const repliesToTranslate = [...message.replies].reverse()
+            repliesToTranslate.forEach((reply) => {
+              translateMessage(`reply-${reply.id}`, reply.content)
+            })
+          }
         })
         // Ensure queue processing starts
         if (!isProcessingQueueRef.current && translationQueueRef.current.length > 0) {
@@ -275,9 +405,22 @@ export function ChatInterface() {
       )
 
       if (untranslatedMessages.length > 0) {
-        // Add untranslated messages to queue
-        untranslatedMessages.forEach((message) => {
+        // Translate from most recent to oldest (prioritize newest messages)
+        const messagesToTranslate = [...untranslatedMessages].reverse() // Newest first
+        messagesToTranslate.forEach((message) => {
           translateMessage(message.id, message.content)
+          
+          // Translate replies for this message (newest first)
+          if (message.replies && message.replies.length > 0) {
+            const repliesToTranslate = [...message.replies].reverse()
+            repliesToTranslate.forEach((reply) => {
+              if (!translatedReplies[reply.id] && 
+                  !translatingRef.current.has(`reply-${reply.id}`) &&
+                  !translationQueueRef.current.find(item => item.messageId === `reply-${reply.id}`)) {
+                translateMessage(`reply-${reply.id}`, reply.content)
+              }
+            })
+          }
         })
         // Ensure queue processing starts
         if (!isProcessingQueueRef.current && translationQueueRef.current.length > 0) {
@@ -288,12 +431,16 @@ export function ChatInterface() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [messages, language, loading])
 
-  // Mark messages as seen immediately when chat page is opened
+  // Mark messages as seen when messages are loaded
   useEffect(() => {
     if (messages.length > 0 && !loading) {
       const lastMessage = messages[messages.length - 1]
       updateLastSeen(lastMessage.created_at)
       // Immediately refresh unread count to clear badge
+      fetchUnreadCount()
+    } else if (messages.length === 0 && !loading) {
+      // No messages, use current timestamp to clear badge
+      updateLastSeen(new Date().toISOString())
       fetchUnreadCount()
     }
   }, [messages.length, loading, updateLastSeen, fetchUnreadCount]) // Run when messages are loaded
@@ -314,6 +461,55 @@ export function ChatInterface() {
     return isAtBottom
   }
 
+  // Check if user is at top of scroll container
+  const checkIfAtTop = () => {
+    const container = messagesContainerRef.current
+    if (!container) return false
+    
+    const threshold = 100 // pixels from top
+    const scrollTop = container.scrollTop
+    const isAtTop = scrollTop < threshold
+    
+    setIsUserAtTop(isAtTop)
+    return isAtTop
+  }
+
+  const handleLoadMore = async () => {
+    if (loadingMore || !hasMoreMessages || messages.length === 0) return
+    
+    setLoadingMore(true)
+    const oldestMessage = messages[0]
+    const beforeDate = oldestMessage.created_at
+    
+    // Save current scroll position and scroll top
+    const container = messagesContainerRef.current
+    const previousScrollHeight = container?.scrollHeight || 0
+    const previousScrollTop = container?.scrollTop || 0
+    
+    try {
+      await fetchMessages(beforeDate)
+      
+      // Restore scroll position after new messages are loaded
+      // Use requestAnimationFrame to ensure DOM is updated
+      requestAnimationFrame(() => {
+        if (container) {
+          const newScrollHeight = container.scrollHeight
+          const scrollDifference = newScrollHeight - previousScrollHeight
+          // Set scroll position to maintain the same relative position
+          container.scrollTop = previousScrollTop + scrollDifference
+        }
+      })
+    } catch (error) {
+      console.error("Error loading more messages:", error)
+      toast.error("Failed to load more messages")
+    } finally {
+      // Delay setting loadingMore to false to prevent auto-scroll
+      setTimeout(() => {
+        setLoadingMore(false)
+      }, 100)
+    }
+  }
+
   // Handle scroll events to track user position
   useEffect(() => {
     const container = messagesContainerRef.current
@@ -321,6 +517,7 @@ export function ChatInterface() {
 
     const handleScroll = () => {
       checkIfAtBottom()
+      checkIfAtTop()
     }
 
     // Also check on initial render
@@ -337,6 +534,12 @@ export function ChatInterface() {
 
   // Auto-scroll to bottom only if user is already at bottom
   useEffect(() => {
+    // Don't auto-scroll if we're loading more messages (messages added at top)
+    if (loadingMore) {
+      previousMessagesLengthRef.current = messages.length
+      return
+    }
+    
     // Only auto-scroll if messages actually changed (new message added)
     const hasNewMessage = messages.length > previousMessagesLengthRef.current
     previousMessagesLengthRef.current = messages.length
@@ -359,7 +562,7 @@ export function ChatInterface() {
       // Immediately refresh unread count to clear badge
       setTimeout(() => fetchUnreadCount(), 100)
     }
-  }, [messages, updateLastSeen, fetchUnreadCount])
+  }, [messages, updateLastSeen, fetchUnreadCount, loadingMore])
 
   // Auto-scroll to bottom on initial load only
   useEffect(() => {
@@ -372,12 +575,120 @@ export function ChatInterface() {
     }
   }, [loading]) // Only on initial load
 
+  // Scroll to reply input when replying opens
+  useEffect(() => {
+    if (replyingTo && replyingTo !== replyingToRef.current) {
+      replyingToRef.current = replyingTo
+      setTimeout(() => {
+        const replyInput = document.querySelector(`[data-reply-to="${replyingTo}"]`)
+        replyInput?.scrollIntoView({ behavior: "smooth", block: "nearest" })
+      }, 150)
+    } else if (!replyingTo) {
+      replyingToRef.current = null
+    }
+  }, [replyingTo])
+
+  const handleLikeMessage = async (messageId: string) => {
+    if (likingMessage) return
+    
+    const message = messages.find(m => m.id === messageId)
+    if (!message) return
+    
+    const isLiked = message.isLiked || false
+    setLikingMessage(messageId)
+    
+    try {
+      const response = await fetch(`/api/customer/messages/${messageId}/like`, {
+        method: isLiked ? "DELETE" : "POST",
+      })
+      
+      if (!response.ok) {
+        throw new Error("Failed to like message")
+      }
+      
+      // Update message in state
+      setMessages(prev => prev.map(msg => {
+        if (msg.id === messageId) {
+          const newLikeCount = isLiked ? (msg.likeCount || 1) - 1 : (msg.likeCount || 0) + 1
+          return {
+            ...msg,
+            isLiked: !isLiked,
+            likeCount: newLikeCount,
+          }
+        }
+        return msg
+      }))
+    } catch (error: any) {
+      console.error("Error liking message:", error)
+      toast.error(error.message || "Failed to like message")
+    } finally {
+      setLikingMessage(null)
+    }
+  }
+
+  const handleSendReply = async (messageId: string) => {
+    if (!replyContent.trim() || sendingReply) return
+    
+    const content = replyContent.trim()
+    setReplyContent("")
+    setSendingReply(true)
+    
+    try {
+      const response = await fetch(`/api/customer/messages/${messageId}/replies`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content }),
+      })
+      
+      if (!response.ok) {
+        throw new Error("Failed to send reply")
+      }
+      
+      const data = await response.json()
+      const newReply = data.reply
+      
+      // Update message with new reply
+      setMessages(prev => prev.map(msg => {
+        if (msg.id === messageId) {
+          // Translate the new reply
+          translateMessage(`reply-${newReply.id}`, newReply.content)
+          
+          return {
+            ...msg,
+            replies: [...(msg.replies || []), newReply],
+            replyCount: (msg.replyCount || 0) + 1,
+          }
+        }
+        return msg
+      }))
+      
+      setReplyingTo(null)
+      toast.success("Reply sent")
+    } catch (error: any) {
+      console.error("Error sending reply:", error)
+      toast.error(error.message || "Failed to send reply")
+    } finally {
+      setSendingReply(false)
+    }
+  }
+
   const handleSendMessage = async () => {
     if (!newMessage.trim() || sending) return
 
     const messageContent = newMessage.trim()
     setNewMessage("")
     setSending(true)
+
+    // Optimistically add a temporary message to the UI
+    const tempId = `temp-${Date.now()}`
+    const optimisticMessage: Message = {
+      id: tempId,
+      customer_id: "",
+      sender: "customer",
+      content: messageContent,
+      created_at: new Date().toISOString(),
+    }
+    setMessages((prev) => [...prev, optimisticMessage])
 
     try {
       const response = await fetch("/api/customer/messages", {
@@ -392,16 +703,37 @@ export function ChatInterface() {
         } else {
           throw new Error("Failed to send message")
         }
-        // Restore message on error
+        // Remove optimistic message and restore input
+        setMessages((prev) => prev.filter((msg) => msg.id !== tempId))
         setNewMessage(messageContent)
       } else {
-        // Refresh messages to show the new one
-        await fetchMessages()
+        const data = await response.json()
+        const sentMessage = data.message
+        
+        // Replace optimistic message with real one and sort
+        setMessages((prev) => {
+          const filtered = prev.filter((msg) => msg.id !== tempId)
+          const updated = [...filtered, sentMessage]
+          // Sort by created_at to ensure proper order
+          return updated.sort((a, b) => {
+            return new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+          })
+        })
+        
+        // Translate the new message
+        translateMessage(sentMessage.id, sentMessage.content)
+        
+        // Update last seen and scroll to bottom
+        updateLastSeen(sentMessage.created_at)
+        setTimeout(() => {
+          messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
+        }, 100)
       }
     } catch (error: any) {
       console.error("Error sending message:", error)
       toast.error(error.message || "Failed to send message")
-      // Restore message on error
+      // Remove optimistic message and restore input
+      setMessages((prev) => prev.filter((msg) => msg.id !== tempId))
       setNewMessage(messageContent)
     } finally {
       setSending(false)
@@ -409,24 +741,26 @@ export function ChatInterface() {
   }
 
   return (
-    <div className="flex flex-1 flex-col">
+    <div className="flex h-full flex-col">
       {/* Header */}
-      <div className="border-b border-border bg-card p-4">
+      <div className="flex-shrink-0 border-b border-border bg-card p-3 sm:p-4">
         <div className="mx-auto flex max-w-2xl items-center gap-3">
           <Avatar>
             <AvatarImage src={adminProfilePicture || "/trainer-avatar.jpg"} />
             <AvatarFallback className="bg-primary text-primary-foreground">JD</AvatarFallback>
           </Avatar>
           <div>
-            <h1 className="font-semibold text-foreground">{t("chat.coachName")}</h1>
+            <h1 className="font-semibold text-foreground">
+              {adminName || "Coach"}
+            </h1>
             <p className="text-xs text-muted-foreground">{t("chat.online")}</p>
           </div>
         </div>
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-4" ref={messagesContainerRef}>
-        <div className="mx-auto max-w-2xl space-y-4">
+      <div className="flex-1 overflow-y-auto p-3 sm:p-4 min-h-0" ref={messagesContainerRef}>
+        <div className="mx-auto max-w-2xl space-y-3 sm:space-y-4">
           {loading ? (
             <div className="flex items-center justify-center h-full">
               <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -436,44 +770,176 @@ export function ChatInterface() {
               <p className="text-muted-foreground">{t("chat.noMessages")}</p>
             </div>
           ) : (
-            messages.map((message) => (
-              <div key={message.id} className={`flex ${message.sender === "customer" ? "justify-end" : "justify-start"}`}>
-                <div
-                  className={`flex max-w-[80%] gap-2 ${message.sender === "customer" ? "flex-row-reverse" : "flex-row"}`}
-                >
+            <>
+              {/* Load More Button */}
+              {hasMoreMessages && (
+                <div className="flex justify-center py-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleLoadMore}
+                    disabled={loadingMore}
+                    className="gap-2"
+                  >
+                    {loadingMore ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Loading...
+                      </>
+                    ) : (
+                      "Load More Messages"
+                    )}
+                  </Button>
+                </div>
+              )}
+              {messages.map((message) => (
+              <div 
+                key={message.id} 
+                className={`flex flex-col ${message.sender === "customer" ? "items-end" : "items-start"} ${
+                  replyingTo === message.id ? "ring-2 ring-primary/30 rounded-lg p-2 -m-2" : ""
+                } transition-all`}
+              >
+                <div className={`flex max-w-[80%] gap-2 ${message.sender === "customer" ? "flex-row-reverse" : "flex-row"}`}>
                   {message.sender === "admin" && (
-                    <Avatar className="h-8 w-8">
+                    <Avatar className="h-8 w-8 flex-shrink-0">
                       <AvatarImage src={adminProfilePicture || "/trainer-avatar.jpg"} />
                       <AvatarFallback className="bg-primary text-primary-foreground text-xs">JD</AvatarFallback>
                     </Avatar>
                   )}
-                  <div className="space-y-1">
+                  <div className="space-y-1 flex-1 min-w-0">
                     <Card
-                      className={`p-3 ${message.sender === "customer" ? "bg-primary text-primary-foreground" : "bg-card"}`}
+                      className={`p-3 ${message.sender === "customer" ? "bg-primary text-primary-foreground" : "bg-card"} ${
+                        replyingTo === message.id ? "ring-2 ring-primary/50" : ""
+                      } transition-all`}
                     >
-                      <p className="text-sm leading-relaxed">
-                        {translatedMessages[message.id] || message.content}
+                      <p className="text-sm leading-relaxed whitespace-pre-wrap break-words">
+                        {formatMessageWithLinks(translatedMessages[message.id] || message.content)}
                       </p>
                     </Card>
-                    <p
-                      className={`text-xs text-muted-foreground ${message.sender === "customer" ? "text-right" : "text-left"}`}
-                    >
-                      {new Date(message.created_at).toLocaleTimeString("en-US", {
-                        hour: "numeric",
-                        minute: "2-digit",
-                      })}
-                    </p>
+                    <div className={`flex items-center gap-2 flex-wrap ${message.sender === "customer" ? "justify-end" : "justify-start"}`}>
+                      <p className="text-xs text-muted-foreground">
+                        {new Date(message.created_at).toLocaleTimeString("en-US", {
+                          hour: "numeric",
+                          minute: "2-digit",
+                        })}
+                      </p>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 px-2 text-xs hover:bg-muted"
+                        onClick={() => handleLikeMessage(message.id)}
+                        disabled={likingMessage === message.id}
+                      >
+                        <Heart className={`h-3.5 w-3.5 mr-1 transition-colors ${message.isLiked ? "fill-red-500 text-red-500" : ""}`} />
+                        {message.likeCount || 0}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className={`h-7 px-2 text-xs hover:bg-muted ${
+                          replyingTo === message.id ? "bg-primary/10 text-primary" : ""
+                        } ${(message.replyCount || 0) > 0 ? "font-semibold" : ""}`}
+                        onClick={() => setReplyingTo(replyingTo === message.id ? null : message.id)}
+                      >
+                        <Reply className={`h-3.5 w-3.5 mr-1 ${replyingTo === message.id ? "text-primary" : ""}`} />
+                        {message.replyCount || 0}
+                      </Button>
+                    </div>
+                    
+                    {/* Replies */}
+                    {message.replies && message.replies.length > 0 && (
+                      <div className="mt-3 space-y-2 ml-4 border-l-2 border-primary/30 pl-3">
+                        {message.replies.map((reply) => (
+                          <div key={reply.id} className="flex items-start gap-2 group">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 mb-1">
+                                <span className="text-xs font-semibold text-foreground">
+                                  {reply.sender === "admin" ? "Coach" : "You"}
+                                </span>
+                                <span className="text-xs text-muted-foreground">
+                                  {new Date(reply.created_at).toLocaleTimeString("en-US", {
+                                    hour: "numeric",
+                                    minute: "2-digit",
+                                  })}
+                                </span>
+                              </div>
+                              <Card className="p-2 bg-muted/50 border-muted">
+                                <p className="text-xs leading-relaxed text-foreground whitespace-pre-wrap">
+                                  {formatMessageWithLinks(translatedReplies[reply.id] || reply.content)}
+                                </p>
+                              </Card>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    
+                            {/* Reply Input */}
+                            {replyingTo === message.id && (
+                              <div className="mt-3 ml-4 space-y-2" data-reply-to={message.id}>
+                                <div className="rounded-lg border-2 border-primary/50 bg-primary/5 p-2">
+                          <div className="flex items-start gap-2 mb-2">
+                            <Reply className="h-3 w-3 mt-0.5 text-primary flex-shrink-0" />
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs font-medium text-primary mb-1">Replying to:</p>
+                              <p className="text-xs text-muted-foreground line-clamp-2">
+                                {formatMessageWithLinks(translatedMessages[message.id] || message.content)}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex gap-2">
+                            <Input
+                              value={replyContent}
+                              onChange={(e) => setReplyContent(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter" && !e.shiftKey) {
+                                  e.preventDefault()
+                                  handleSendReply(message.id)
+                                }
+                              }}
+                              placeholder="Type your reply..."
+                              className="flex-1 text-sm h-9 bg-background"
+                              autoFocus
+                            />
+                            <Button
+                              size="sm"
+                              onClick={() => handleSendReply(message.id)}
+                              disabled={!replyContent.trim() || sendingReply}
+                              className="h-9"
+                            >
+                              {sendingReply ? (
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                              ) : (
+                                <Send className="h-4 w-4" />
+                              )}
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => {
+                                setReplyingTo(null)
+                                setReplyContent("")
+                              }}
+                              className="h-9"
+                            >
+                              Cancel
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
-            ))
+            ))}
+              <div ref={messagesEndRef} />
+            </>
           )}
-          <div ref={messagesEndRef} />
         </div>
       </div>
 
       {/* Input */}
-      <div className="border-t border-border bg-card p-4 pb-24">
+      <div className="flex-shrink-0 border-t border-border bg-card p-3 sm:p-4 pb-24">
         <div className="mx-auto flex max-w-2xl gap-2">
           <Input
             value={newMessage}

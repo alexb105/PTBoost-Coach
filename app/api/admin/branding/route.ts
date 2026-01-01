@@ -46,6 +46,7 @@ export async function GET(request: NextRequest) {
           logo_url: null,
           secondary_color: '#3b82f6',
           admin_profile_picture_url: null,
+          admin_name: null,
         })
       }
       throw error
@@ -57,6 +58,7 @@ export async function GET(request: NextRequest) {
       logo_url: null,
       secondary_color: '#3b82f6',
       admin_profile_picture_url: null,
+      admin_name: null,
     })
   } catch (error: any) {
     console.error('Error fetching branding settings:', error)
@@ -79,7 +81,7 @@ export async function PUT(request: NextRequest) {
       )
     }
 
-    const { brand_name, tagline, logo_url, secondary_color, admin_profile_picture_url } = await request.json()
+    const { brand_name, tagline, logo_url, secondary_color, admin_profile_picture_url, admin_name } = await request.json()
 
     if (!brand_name) {
       return NextResponse.json(
@@ -108,6 +110,7 @@ export async function PUT(request: NextRequest) {
           logo_url: logo_url || null,
           secondary_color: secondary_color || '#3b82f6',
           admin_profile_picture_url: admin_profile_picture_url || null,
+          admin_name: admin_name || null,
         })
         .eq('id', existing.id)
         .select()
@@ -125,6 +128,7 @@ export async function PUT(request: NextRequest) {
           logo_url: logo_url || null,
           secondary_color: secondary_color || '#3b82f6',
           admin_profile_picture_url: admin_profile_picture_url || null,
+          admin_name: admin_name || null,
         })
         .select()
         .single()

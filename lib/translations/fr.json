@@ -19,7 +19,9 @@
     "filter": "Filtrer",
     "language": "Langue",
     "letsMakeTodayCount": "Faisons compter aujourd'hui",
-    "and": "et"
+    "and": "et",
+    "showMore": "Afficher plus",
+    "showLess": "Afficher moins"
   },
   "auth": {
     "login": "Connexion",
@@ -131,10 +133,10 @@
     "trackWeight": "Suivez votre poids dans le temps",
     "logWeight": "Enregistrer le poids",
     "enterCurrentWeight": "Entrez votre poids actuel",
-    "weightLbs": "Poids (lbs)",
+    "weightLbs": "Poids (kg)",
     "currentWeight": "Poids actuel",
     "saveWeight": "Enregistrer le poids",
-    "weightUnit": "lbs",
+    "weightUnit": "kg",
     "progressPhotos": "Photos de progrès",
     "visualJourney": "Parcours visuel de votre transformation",
     "addProgressPhoto": "Ajouter une photo de progrès",
@@ -146,7 +148,7 @@
   },
     "visualProgress": "Suivi visuel des progrès",
     "enterCurrentWeight": "Entrez votre poids actuel pour suivre les progrès",
-    "weightLbs": "Poids (lbs)"
+    "weightLbs": "Poids (kg)"
   },
   "profile": {
     "title": "Profil",

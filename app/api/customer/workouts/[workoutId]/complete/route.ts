@@ -44,10 +44,10 @@ export async function POST(
     const { workoutId } = await params
     const supabase = createServerClient()
     
-    // First, verify the workout belongs to the user
+    // First, verify the workout belongs to the user and get workout details
     const { data: workout, error: fetchError } = await supabase
       .from('workouts')
-      .select('customer_id')
+      .select('customer_id, title, date')
       .eq('id', workoutId)
       .single()
 
@@ -79,6 +79,28 @@ export async function POST(
 
     if (error) {
       throw error
+    }
+
+    // Send a message to the chat about the workout completion
+    try {
+      const workoutDate = workout.date ? new Date(workout.date).toLocaleDateString('en-US', { 
+        month: 'long', 
+        day: 'numeric', 
+        year: 'numeric' 
+      }) : 'today'
+      
+      const messageContent = `✅ Completed workout: "${workout.title}" (${workoutDate})`
+      
+      await supabase
+        .from('messages')
+        .insert({
+          customer_id: session.userId,
+          sender: 'customer',
+          content: messageContent,
+        })
+    } catch (messageError) {
+      // Log error but don't fail the workout completion if message fails
+      console.error('Error sending workout completion message to chat:', messageError)
     }
 
     return NextResponse.json(

@@ -15,6 +15,21 @@ export const metadata: Metadata = {
   title: "APEX Training — Elite Personal Training",
   description: "Elevate your fitness journey with personalized elite training",
   generator: "v0.app",
+  viewport: {
+    width: "device-width",
+    initialScale: 1,
+    maximumScale: 5,
+    userScalable: true,
+  },
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#ffffff" },
+    { media: "(prefers-color-scheme: dark)", color: "#000000" },
+  ],
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "APEX Training",
+  },
   icons: {
     icon: [
       {

@@ -80,7 +80,7 @@ export default function TemplatesPage() {
   // Helper function to parse exercise string into structured format
   const parseExercise = (exerciseStr: string): ExerciseFormData => {
     if (!exerciseStr || !exerciseStr.trim()) {
-      return { name: "", sets: "", reps: "", type: "reps", weight: "", notes: "" }
+      return { name: "", exercise_type: "sets", sets: "", reps: "", type: "reps", weight: "", notes: "" }
     }
 
     const parts = exerciseStr.split(" - ")
@@ -108,7 +108,7 @@ export default function TemplatesPage() {
     
     const name = mainPart.trim()
     
-    return { name, sets, reps, type, weight, notes }
+    return { name, exercise_type: "sets", sets, reps, type, weight, notes }
   }
 
   const handleCreateClick = () => {
@@ -116,7 +116,7 @@ export default function TemplatesPage() {
     setTemplateForm({
       title: "",
       description: "",
-      exercises: [{ name: "", sets: "", reps: "", type: "reps" as const, weight: "", notes: "" }],
+      exercises: [{ name: "", exercise_type: "sets", sets: "", reps: "", type: "reps" as const, weight: "", notes: "" }],
     })
     setIsDialogOpen(true)
   }
@@ -127,7 +127,7 @@ export default function TemplatesPage() {
     // Parse exercises from stored format
     const parsedExercises = template.exercises && Array.isArray(template.exercises) && template.exercises.length > 0
       ? template.exercises.map(parseExercise)
-      : [{ name: "", sets: "", reps: "", type: "reps" as const, weight: "", notes: "" }]
+      : [{ name: "", exercise_type: "sets", sets: "", reps: "", type: "reps" as const, weight: "", notes: "" }]
     
     setTemplateForm({
       title: template.title,
@@ -145,7 +145,7 @@ export default function TemplatesPage() {
   const addExercise = () => {
     setTemplateForm({
       ...templateForm,
-      exercises: [...templateForm.exercises, { name: "", sets: "", reps: "", type: "reps" as const, weight: "", notes: "" }],
+      exercises: [...templateForm.exercises, { name: "", exercise_type: "sets", sets: "", reps: "", type: "reps" as const, weight: "", notes: "" }],
     })
   }
 

@@ -53,7 +53,7 @@ export async function GET(
     // First, try to find the exercise in the global exercises table
     const { data: exercise } = await supabase
       .from('exercises')
-      .select('id, display_name')
+      .select('id, display_name, image_url, video_url')
       .eq('name', normalizedExerciseName)
       .single()
 
@@ -107,6 +107,9 @@ export async function GET(
       reps?: string
       weight?: string
       seconds?: string
+      duration_minutes?: string
+      distance_km?: string
+      intensity?: string
       completed_at?: string
     }> = []
 
@@ -132,6 +135,9 @@ export async function GET(
               reps: completion.bestSet.reps,
               weight: completion.bestSet.weight,
               seconds: completion.bestSet.seconds,
+              duration_minutes: completion.bestSet.duration_minutes,
+              distance_km: completion.bestSet.distance_km,
+              intensity: completion.bestSet.intensity,
               completed_at: completion.completed_at,
             })
           }
@@ -146,6 +152,7 @@ export async function GET(
         const dateB = new Date(b.completed_at || b.workout_date).getTime()
         return dateB - dateA // Most recent first
       }),
+      exercise: exercise || null, // Include exercise data with media URLs
     }, { status: 200 })
   } catch (error: any) {
     console.error('Error fetching exercise PB:', error)

@@ -19,7 +19,9 @@
     "filter": "กรอง",
     "language": "ภาษา",
     "letsMakeTodayCount": "มาทำให้วันนี้นับ",
-    "and": "และ"
+    "and": "และ",
+    "showMore": "แสดงเพิ่มเติม",
+    "showLess": "แสดงน้อยลง"
   },
   "auth": {
     "login": "เข้าสู่ระบบ",
@@ -127,10 +129,10 @@
     "trackWeight": "ติดตามความคืบหน้าน้ำหนักของคุณ",
     "logWeight": "บันทึกน้ำหนัก",
     "enterCurrentWeight": "ป้อนน้ำหนักปัจจุบันของคุณ",
-    "weightLbs": "น้ำหนัก (ปอนด์)",
+    "weightLbs": "น้ำหนัก (กก.)",
     "currentWeight": "น้ำหนักปัจจุบัน",
     "saveWeight": "บันทึกน้ำหนัก",
-    "weightUnit": "ปอนด์",
+    "weightUnit": "กก.",
     "progressPhotos": "รูปภาพความคืบหน้า",
     "visualJourney": "การเดินทางด้วยภาพของการเปลี่ยนแปลงของคุณ",
     "addProgressPhoto": "เพิ่มรูปภาพความคืบหน้า",

@@ -43,23 +43,80 @@ export async function GET(request: NextRequest) {
 
     const supabase = createServerClient()
     
-    let query = supabase
+    // Count unread messages from admin
+    let messageQuery = supabase
       .from('messages')
       .select('id', { count: 'exact' })
       .eq('customer_id', session.userId)
       .eq('sender', 'admin') // Only count admin messages as unread
 
     if (lastSeenTimestamp) {
-      query = query.gt('created_at', lastSeenTimestamp)
+      messageQuery = messageQuery.gt('created_at', lastSeenTimestamp)
     }
 
-    const { count, error } = await query
+    const { count: messageCount, error: messageError } = await messageQuery
 
-    if (error) {
-      throw error
+    if (messageError) {
+      throw messageError
     }
 
-    return NextResponse.json({ unreadCount: count || 0 })
+    // Count unread likes on customer's messages (likes from admin after lastSeen)
+    let likeCount = 0
+    if (lastSeenTimestamp) {
+      // Get customer's messages
+      const { data: customerMessages } = await supabase
+        .from('messages')
+        .select('id')
+        .eq('customer_id', session.userId)
+        .eq('sender', 'customer')
+
+      if (customerMessages && customerMessages.length > 0) {
+        const messageIds = customerMessages.map(m => m.id)
+        
+        // Count likes from admin on customer's messages after lastSeen
+        const { count: likesCount, error: likesError } = await supabase
+          .from('message_likes')
+          .select('id', { count: 'exact' })
+          .in('message_id', messageIds)
+          .eq('liked_by', 'admin')
+          .gt('created_at', lastSeenTimestamp)
+
+        if (!likesError) {
+          likeCount = likesCount || 0
+        }
+      }
+    }
+
+    // Count unread replies to customer's messages (replies from admin after lastSeen)
+    let replyCount = 0
+    if (lastSeenTimestamp) {
+      // Get customer's messages
+      const { data: customerMessages } = await supabase
+        .from('messages')
+        .select('id')
+        .eq('customer_id', session.userId)
+        .eq('sender', 'customer')
+
+      if (customerMessages && customerMessages.length > 0) {
+        const messageIds = customerMessages.map(m => m.id)
+        
+        // Count replies from admin to customer's messages after lastSeen
+        const { count: repliesCount, error: repliesError } = await supabase
+          .from('message_replies')
+          .select('id', { count: 'exact' })
+          .in('message_id', messageIds)
+          .eq('sender', 'admin')
+          .gt('created_at', lastSeenTimestamp)
+
+        if (!repliesError) {
+          replyCount = repliesCount || 0
+        }
+      }
+    }
+
+    const totalUnread = (messageCount || 0) + likeCount + replyCount
+
+    return NextResponse.json({ unreadCount: totalUnread })
   } catch (error: any) {
     console.error('Error fetching unread count:', error)
     return NextResponse.json(
@@ -68,6 +125,9 @@ export async function GET(request: NextRequest) {
     )
   }
 }
+
+
+
 
 
 

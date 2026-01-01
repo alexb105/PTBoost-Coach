@@ -91,6 +91,14 @@ export async function POST(
       completed: boolean
       rating?: string
       completed_at?: string
+      bestSet?: {
+        reps?: string
+        weight?: string
+        seconds?: string
+        duration_minutes?: string
+        distance_km?: string
+        intensity?: string
+      }
     }> = workout.exercise_completions || []
 
     // Update or add completion for this exercise
@@ -100,7 +108,14 @@ export async function POST(
       completed: boolean
       rating: string
       completed_at: string
-      bestSet?: { reps?: string; weight?: string; seconds?: string }
+      bestSet?: { 
+        reps?: string
+        weight?: string
+        seconds?: string
+        duration_minutes?: string
+        distance_km?: string
+        intensity?: string
+      }
     } = {
       exerciseIndex: exerciseIndexNum,
       completed: true,
@@ -108,8 +123,15 @@ export async function POST(
       completed_at: new Date().toISOString(),
     }
 
-    // Add best set if provided
-    if (bestSet && (bestSet.reps || bestSet.weight || bestSet.seconds)) {
+    // Add best set if provided (check for both sets-based and cardio fields)
+    if (bestSet && (
+      bestSet.reps || 
+      bestSet.weight || 
+      bestSet.seconds || 
+      bestSet.duration_minutes || 
+      bestSet.distance_km || 
+      bestSet.intensity
+    )) {
       newCompletion.bestSet = bestSet
     }
 

@@ -92,33 +92,34 @@ export function ClientHeader() {
   }
 
   return (
-    <header className="sticky top-0 z-40 border-b bg-card/80 backdrop-blur-xl">
-      <div className="mx-auto max-w-2xl px-4 py-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-primary/20 to-primary/5 ring-1 ring-primary/20">
-              <Sparkles className="h-5 w-5 text-primary" />
+    <header className="sticky top-0 z-40 border-b bg-card/80 backdrop-blur-xl safe-area-top">
+      <div className="mx-auto max-w-2xl px-3 sm:px-4 py-3 sm:py-4 pt-safe">
+        <div className="flex items-center justify-between gap-2 min-w-0">
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
+            <div className="flex h-8 w-8 sm:h-10 sm:w-10 items-center justify-center rounded-xl bg-gradient-to-br from-primary/20 to-primary/5 ring-1 ring-primary/20 flex-shrink-0">
+              <Sparkles className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
             </div>
-            <div>
-              <h2 className="text-lg font-semibold text-foreground">
-                {getGreeting()}, {getFirstName()}! 👋
+            <div className="min-w-0 flex-1">
+              <h2 className="text-sm sm:text-lg font-semibold text-foreground truncate">
+                <span className="hidden sm:inline">{getGreeting()}, </span>
+                {getFirstName()}! 👋
               </h2>
-              <p className="text-xs text-muted-foreground">
-                {t("common.letsMakeTodayCount")}
+              <p className="text-[10px] sm:text-xs text-muted-foreground truncate">
+                {customer?.email || ""}
               </p>
             </div>
           </div>
           
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
             <LanguageSelector />
             <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-10 w-10 rounded-full"
+                className="h-8 w-8 sm:h-10 sm:w-10 rounded-full flex-shrink-0"
               >
-                <User className="h-5 w-5" />
+                <User className="h-4 w-4 sm:h-5 sm:w-5" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-56">

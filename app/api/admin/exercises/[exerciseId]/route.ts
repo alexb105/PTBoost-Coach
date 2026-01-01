@@ -44,7 +44,20 @@ export async function PUT(
     }
 
     const { exerciseId } = await params
-    const { name, display_name } = await request.json()
+    const { 
+      name, 
+      display_name,
+      exercise_type,
+      default_sets,
+      default_reps,
+      default_weight,
+      default_duration_minutes,
+      default_distance_km,
+      default_intensity,
+      image_url,
+      video_url,
+      description
+    } = await request.json()
 
     if (!name || !name.trim()) {
       return NextResponse.json(
@@ -52,6 +65,11 @@ export async function PUT(
         { status: 400 }
       )
     }
+
+    // Ensure exercise_type is valid, default to 'sets' if missing or invalid
+    // Normalize by trimming and lowercasing to handle any edge cases
+    const normalizedType = exercise_type ? String(exercise_type).trim().toLowerCase() : 'sets'
+    const validExerciseType = ['cardio', 'sets'].includes(normalizedType) ? normalizedType : 'sets'
 
     const supabase = createServerClient()
     
@@ -74,18 +92,84 @@ export async function PUT(
       )
     }
 
+    // Build update object - explicitly set exercise_type to ensure it's never null/undefined
+    const updateData: any = {
+      name: normalizedName,
+      display_name: displayName,
+      exercise_type: validExerciseType,
+      updated_at: new Date().toISOString(),
+    }
+
+    // Add media URLs if provided
+    if (image_url !== undefined) {
+      updateData.image_url = image_url && image_url.trim() ? image_url.trim() : null
+    }
+    if (video_url !== undefined) {
+      updateData.video_url = video_url && video_url.trim() ? video_url.trim() : null
+    }
+    if (description !== undefined) {
+      updateData.description = description && description.trim() ? description.trim() : null
+    }
+
+    console.log('Updating exercise with data:', JSON.stringify(updateData, null, 2))
+
+    // Add type-specific defaults
+    if (validExerciseType === 'sets') {
+      // Clear cardio fields
+      updateData.default_duration_minutes = null
+      updateData.default_distance_km = null
+      updateData.default_intensity = null
+      
+      // Set set-based fields
+      if (default_sets !== undefined && default_sets !== null && default_sets !== '') {
+        updateData.default_sets = parseInt(default_sets)
+      } else {
+        updateData.default_sets = null
+      }
+      if (default_reps !== undefined && default_reps !== null && default_reps !== '') {
+        updateData.default_reps = default_reps
+      } else {
+        updateData.default_reps = null
+      }
+      if (default_weight !== undefined && default_weight !== null && default_weight !== '') {
+        updateData.default_weight = default_weight
+      } else {
+        updateData.default_weight = null
+      }
+    } else if (validExerciseType === 'cardio') {
+      // Clear set-based fields
+      updateData.default_sets = null
+      updateData.default_reps = null
+      updateData.default_weight = null
+      
+      // Set cardio fields
+      if (default_duration_minutes !== undefined && default_duration_minutes !== null && default_duration_minutes !== '') {
+        updateData.default_duration_minutes = parseInt(default_duration_minutes)
+      } else {
+        updateData.default_duration_minutes = null
+      }
+      if (default_distance_km !== undefined && default_distance_km !== null && default_distance_km !== '') {
+        updateData.default_distance_km = parseFloat(default_distance_km)
+      } else {
+        updateData.default_distance_km = null
+      }
+      if (default_intensity !== undefined && default_intensity !== null && default_intensity !== '') {
+        updateData.default_intensity = default_intensity
+      } else {
+        updateData.default_intensity = null
+      }
+    }
+
     const { data, error } = await supabase
       .from('exercises')
-      .update({
-        name: normalizedName,
-        display_name: displayName,
-        updated_at: new Date().toISOString(),
-      })
+      .update(updateData)
       .eq('id', exerciseId)
       .select()
       .single()
 
     if (error) {
+      console.error('Database error:', error)
+      console.error('Attempted update data:', JSON.stringify(updateData, null, 2))
       throw error
     }
 
@@ -121,24 +205,33 @@ export async function DELETE(
 
     const supabase = createServerClient()
     
-    // Check if exercise is used in any PBs
-    const { data: pbs, error: checkError } = await supabase
-      .from('exercise_pbs')
-      .select('id')
-      .eq('exercise_id', exerciseId)
-      .limit(1)
+    // Get exercise name before deletion (for cleaning up PBs that use exercise_name)
+    const { data: exercise, error: exerciseError } = await supabase
+      .from('exercises')
+      .select('name')
+      .eq('id', exerciseId)
+      .single()
 
-    if (checkError) {
-      throw checkError
+    if (exerciseError) {
+      throw exerciseError
     }
 
-    if (pbs && pbs.length > 0) {
-      return NextResponse.json(
-        { error: 'Cannot delete exercise that has personal best records. Delete all related PBs first.' },
-        { status: 409 }
-      )
+    // Delete PBs that reference this exercise by exercise_name (backward compatibility)
+    // PBs with exercise_id will be deleted automatically via CASCADE
+    if (exercise?.name) {
+      const { error: pbDeleteError } = await supabase
+        .from('exercise_pbs')
+        .delete()
+        .eq('exercise_name', exercise.name)
+
+      if (pbDeleteError) {
+        console.error('Error deleting PBs by exercise_name:', pbDeleteError)
+        // Continue with exercise deletion even if PB cleanup fails
+      }
     }
 
+    // Delete the exercise - database cascade will automatically delete related PBs
+    // that use exercise_id due to ON DELETE CASCADE on exercise_pbs.exercise_id foreign key
     const { error } = await supabase
       .from('exercises')
       .delete()

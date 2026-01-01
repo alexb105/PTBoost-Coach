@@ -130,10 +130,20 @@ export function useMessageNotifications({
           // If count increased, show notification (but not if user is viewing chat)
           if (newCount > prevCount && newCount > 0 && notificationPermission === 'granted' && !isViewingChat) {
             const senderName = isAdmin ? 'Customer' : 'Trainer'
-            showNotification(
-              'New Message',
-              `You have ${newCount} new message${newCount > 1 ? 's' : ''} from ${senderName}`,
-            )
+            const diff = newCount - prevCount
+            
+            // Determine notification message based on what changed
+            if (diff === 1) {
+              showNotification(
+                'New Activity',
+                `You have new activity from ${senderName}`,
+              )
+            } else {
+              showNotification(
+                'New Activity',
+                `You have ${diff} new activities from ${senderName}`,
+              )
+            }
           }
           
           return newCount

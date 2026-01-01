@@ -26,6 +26,12 @@ import { useLanguage } from "@/contexts/language-context"
 import { toast } from "sonner"
 import { Progress } from "@/components/ui/progress"
 import { Badge } from "@/components/ui/badge"
+import {
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+} from "@/components/ui/chart"
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, ReferenceLine } from "recharts"
 
 interface WeightEntry {
   id: string
@@ -246,7 +252,7 @@ export function ProgressTracker() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          weight: weightForm.weight,
+          weight: parseFloat(weightForm.weight),
           date: weightForm.date,
           notes: weightForm.notes || null,
         }),
@@ -286,6 +292,31 @@ export function ProgressTracker() {
   const photoEndIndex = photoStartIndex + ITEMS_PER_PAGE
   const paginatedProgressPhotos = progressPhotos.slice(photoStartIndex, photoEndIndex)
 
+  // Prepare chart data - sort by date
+  const chartData = weightEntries
+    .map(entry => ({
+      date: format(new Date(entry.date), "MMM d"),
+      fullDate: entry.date,
+      weight: Number(entry.weight.toFixed(1)),
+    }))
+    .sort((a, b) => new Date(a.fullDate).getTime() - new Date(b.fullDate).getTime())
+
+  // Get all weight goals for reference lines (active and future goals)
+  const goalsForChart = weightGoals.filter(goal => {
+    const today = new Date()
+    const endDate = new Date(goal.end_date)
+    // Show goals that haven't ended yet
+    return today <= endDate
+  }).map(goal => {
+    const today = new Date()
+    const endDate = new Date(goal.end_date)
+    const daysLeft = Math.ceil((endDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
+    return {
+      ...goal,
+      daysLeft: daysLeft > 0 ? daysLeft : 0
+    }
+  })
+
   return (
     <div className="mx-auto max-w-2xl p-4">
       <div className="mb-6">
@@ -311,8 +342,19 @@ export function ProgressTracker() {
               const startDate = new Date(goal.start_date)
               const endDate = new Date(goal.end_date)
               const today = new Date()
+              today.setHours(0, 0, 0, 0)
+              startDate.setHours(0, 0, 0, 0)
+              endDate.setHours(0, 0, 0, 0)
+              
               const isActive = today >= startDate && today <= endDate
               const isPast = today > endDate
+              const isFuture = today < startDate
+              
+              // Calculate days
+              const totalDays = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24))
+              const daysElapsed = isFuture ? 0 : Math.max(0, Math.ceil((today.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)))
+              const daysRemaining = isPast ? 0 : Math.max(0, Math.ceil((endDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24)))
+              const timeRemainingPercent = totalDays > 0 ? (daysRemaining / totalDays) * 100 : 0
               
               // Find current weight (most recent entry within goal period)
               const currentWeightEntry = weightEntries
@@ -322,8 +364,9 @@ export function ProgressTracker() {
                 })
                 .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0]
               
-              const currentWeight = currentWeightEntry?.weight || null
-              const progress = currentWeight ? ((currentWeight / goal.target_weight) * 100) : 0
+              const currentWeight = currentWeightEntry ? currentWeightEntry.weight : null
+              const targetWeight = goal.target_weight
+              const progress = currentWeight ? ((currentWeight / targetWeight) * 100) : 0
 
               return (
                 <div key={goal.id} className="rounded-lg bg-background p-4 border border-border">
@@ -338,6 +381,9 @@ export function ProgressTracker() {
                       {isPast && (
                         <span className="text-xs bg-muted text-muted-foreground px-2 py-0.5 rounded">Completed</span>
                       )}
+                      {isFuture && (
+                        <span className="text-xs bg-blue-500/20 text-blue-500 px-2 py-0.5 rounded">Upcoming</span>
+                      )}
                     </div>
                     <p className="text-sm text-muted-foreground">
                       {format(startDate, "MMM d")} - {format(endDate, "MMM d, yyyy")}
@@ -346,18 +392,27 @@ export function ProgressTracker() {
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
                       <span className="text-sm text-muted-foreground">Target Weight</span>
-                      <span className="font-semibold text-foreground">{goal.target_weight} {t("progress.weightUnit")}</span>
+                      <span className="font-semibold text-foreground">{targetWeight.toFixed(1)} {t("progress.weightUnit")}</span>
                     </div>
-                    {currentWeight && (
-                      <>
+                    
+                    {/* Days Remaining Progress Bar */}
+                    {isActive && (
+                      <div className="space-y-1">
                         <div className="flex items-center justify-between">
-                          <span className="text-sm text-muted-foreground">Current Weight</span>
-                          <span className="font-semibold text-foreground">{currentWeight} {t("progress.weightUnit")}</span>
+                          <span className="text-sm text-muted-foreground">Time Remaining</span>
+                          <span className="text-sm font-semibold text-foreground">
+                            {daysRemaining === 0 
+                              ? "Today" 
+                              : daysRemaining === 1 
+                              ? "1 day left" 
+                              : `${daysRemaining} days left`}
+                          </span>
                         </div>
-                        <Progress value={Math.min(progress, 100)} className="h-2" />
-                      </>
+                        <Progress value={timeRemainingPercent} className="h-2" />
+                      </div>
                     )}
-                    {!currentWeight && (
+                    
+                    {!currentWeight && !isPast && (
                       <p className="text-xs text-muted-foreground">No weight entries recorded for this period yet.</p>
                     )}
                     {goal.notes && (
@@ -402,7 +457,7 @@ export function ProgressTracker() {
                     id="weight" 
                     type="number" 
                     step="0.1"
-                    placeholder="180" 
+                    placeholder="82" 
                     className="bg-background" 
                     value={weightForm.weight}
                     onChange={(e) => setWeightForm({ ...weightForm, weight: e.target.value })}
@@ -450,6 +505,85 @@ export function ProgressTracker() {
           </Dialog>
         </div>
 
+        {/* Weight Progress Chart */}
+        {chartData.length > 0 && (
+          <div className="mb-6">
+            {/* Chart Legend */}
+            {goalsForChart.length > 0 && (
+              <div className="mb-3 flex items-center gap-4 text-sm">
+                <div className="flex items-center gap-2">
+                  <div 
+                    className="h-3 w-8 border-t-2 border-dashed" 
+                    style={{ borderColor: "hsl(221.2 83.2% 53.3%)" }}
+                  ></div>
+                  <span className="text-muted-foreground">Target Weight Goal</span>
+                </div>
+              </div>
+            )}
+            <ChartContainer
+              config={{
+                weight: {
+                  label: "Weight",
+                  color: "hsl(142.1 76.2% 36.3%)",
+                },
+                target: {
+                  label: "Target",
+                  color: "hsl(221.2 83.2% 53.3%)",
+                },
+              }}
+              className="h-[300px] w-full"
+            >
+              <LineChart data={chartData} margin={{ top: 30, right: 10, left: 0, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" className="stroke-border/50" />
+                <XAxis 
+                  dataKey="date" 
+                  className="text-xs fill-muted-foreground"
+                />
+                <YAxis 
+                  className="text-xs fill-muted-foreground"
+                  label={{ value: `Weight (${t("progress.weightUnit")})`, angle: -90, position: 'insideLeft' }}
+                  domain={['auto', 'auto']}
+                />
+                <ChartTooltip content={<ChartTooltipContent />} />
+                <Line 
+                  type="monotone" 
+                  dataKey="weight" 
+                  name="weight"
+                  stroke="var(--color-weight)" 
+                  strokeWidth={3}
+                  dot={{ fill: "var(--color-weight)", r: 5, strokeWidth: 2, stroke: "#fff" }}
+                  activeDot={{ r: 7, strokeWidth: 2, stroke: "#fff" }}
+                  connectNulls={false}
+                />
+                {goalsForChart.map((goal) => {
+                  const daysText = goal.daysLeft === 0 
+                    ? "Today" 
+                    : goal.daysLeft === 1 
+                    ? "1 day left" 
+                    : `${goal.daysLeft} days left`
+                  return (
+                    <ReferenceLine 
+                      key={goal.id}
+                      y={goal.target_weight} 
+                      stroke="hsl(221.2 83.2% 53.3%)" 
+                      strokeWidth={2}
+                      strokeDasharray="5 5"
+                      label={{ 
+                        value: `Target: ${goal.target_weight.toFixed(1)} ${t("progress.weightUnit")} (${daysText})`, 
+                        position: "top",
+                        fill: "hsl(221.2 83.2% 53.3%)",
+                        fontSize: 12,
+                        fontWeight: 600,
+                        offset: 10
+                      }}
+                    />
+                  )
+                })}
+              </LineChart>
+            </ChartContainer>
+          </div>
+        )}
+
         <div className="space-y-3">
           {loading ? (
             <div className="flex items-center justify-center py-4">
@@ -469,7 +603,7 @@ export function ProgressTracker() {
                       <span className="text-xs text-muted-foreground mt-1">{entry.notes}</span>
                     )}
                   </div>
-                  <span className="font-semibold text-foreground">{entry.weight} {t("progress.weightUnit")}</span>
+                  <span className="font-semibold text-foreground">{entry.weight.toFixed(1)} {t("progress.weightUnit")}</span>
                 </div>
               ))}
               
@@ -541,145 +675,155 @@ export function ProgressTracker() {
                 {t("common.add")}
               </Button>
             </DialogTrigger>
-            <DialogContent className="bg-card max-w-md">
-              <DialogHeader>
+            <DialogContent className="bg-card max-w-md max-h-[90vh] flex flex-col">
+              <DialogHeader className="flex-shrink-0">
                 <DialogTitle>{t("progress.addProgressPhoto")}</DialogTitle>
                 <DialogDescription>{t("progress.uploadPhotoDescription")}</DialogDescription>
               </DialogHeader>
-              <form onSubmit={handleUploadPhoto} className="space-y-4 py-4">
-                {/* Drag & Drop Zone */}
-                <div
-                  ref={dropZoneRef}
-                  onDrop={handleDrop}
-                  onDragOver={handleDragOver}
-                  onDragEnter={handleDragEnter}
-                  onDragLeave={handleDragLeave}
-                  className={`relative border-2 border-dashed rounded-lg p-6 transition-colors ${
-                    photoPreview 
-                      ? 'border-primary bg-primary/5' 
-                      : 'border-border bg-background/50 hover:border-primary/50 cursor-pointer'
-                  }`}
-                  onClick={(e) => {
-                    e.preventDefault()
-                    e.stopPropagation()
-                    if (!photoPreview && fileInputRef.current) {
-                      fileInputRef.current.click()
-                    }
-                  }}
-                >
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="image/*"
-                    onChange={handleFileInputChange}
-                    className="hidden"
-                  />
+              <form onSubmit={handleUploadPhoto} className="flex flex-col flex-1 min-h-0 space-y-4">
+                <div className="flex-1 overflow-y-auto space-y-4 pr-1">
+                  {/* Drag & Drop Zone */}
                   {photoPreview ? (
-                    <div className="space-y-2">
-                      <div className="relative aspect-[3/4] max-h-64 mx-auto rounded-lg overflow-hidden">
-                        <img
-                          src={photoPreview}
-                          alt="Preview"
-                          className="w-full h-full object-cover"
-                        />
-                        <Button
-                          type="button"
-                          variant="destructive"
-                          size="icon"
-                          className="absolute top-2 right-2 h-8 w-8 z-10"
-                          onClick={(e) => {
-                            e.preventDefault()
-                            e.stopPropagation()
-                            setPhotoPreview(null)
-                            setPhotoForm(prev => ({ ...prev, file: null }))
-                            if (fileInputRef.current) {
-                              fileInputRef.current.value = ''
-                            }
-                          }}
-                        >
-                          <X className="h-4 w-4" />
-                        </Button>
+                    <div className="relative border-2 border-dashed border-primary bg-primary/5 rounded-lg p-4">
+                      <div className="space-y-2">
+                        <div className="relative aspect-[3/4] max-h-48 mx-auto rounded-lg overflow-hidden bg-background">
+                          <img
+                            src={photoPreview}
+                            alt="Preview"
+                            className="w-full h-full object-cover"
+                          />
+                          <Button
+                            type="button"
+                            variant="destructive"
+                            size="icon"
+                            className="absolute top-2 right-2 h-8 w-8 z-10 shadow-lg"
+                            onClick={(e) => {
+                              e.preventDefault()
+                              e.stopPropagation()
+                              setPhotoPreview(null)
+                              setPhotoForm(prev => ({ ...prev, file: null }))
+                              if (fileInputRef.current) {
+                                fileInputRef.current.value = ''
+                              }
+                            }}
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
+                        <p className="text-center text-xs text-muted-foreground truncate px-2" title={photoForm.file?.name}>
+                          {photoForm.file?.name}
+                        </p>
                       </div>
-                      <p className="text-center text-sm text-muted-foreground">
-                        {photoForm.file?.name}
-                      </p>
                     </div>
                   ) : (
-                    <div className="flex flex-col items-center justify-center space-y-2 text-center">
-                      <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
-                        <Upload className="h-6 w-6 text-primary" />
+                    <label
+                      htmlFor="progress-photo-upload"
+                      className="relative block border-2 border-dashed border-border bg-background/50 hover:border-primary/50 rounded-lg p-6 transition-colors cursor-pointer min-h-[120px]"
+                      onDrop={handleDrop}
+                      onDragOver={handleDragOver}
+                      onDragEnter={handleDragEnter}
+                      onDragLeave={handleDragLeave}
+                    >
+                      <input
+                        id="progress-photo-upload"
+                        ref={fileInputRef}
+                        type="file"
+                        accept="image/*"
+                        onChange={handleFileInputChange}
+                        className="hidden"
+                      />
+                      <div className="flex flex-col items-center justify-center space-y-2 text-center">
+                        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10">
+                          <Upload className="h-6 w-6 text-primary" />
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-foreground">
+                            Click to upload or drag and drop
+                          </p>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            PNG, JPG up to 10MB
+                          </p>
+                        </div>
                       </div>
-                      <div>
-                        <p className="text-sm font-medium text-foreground">
-                          Click to upload or drag and drop
-                        </p>
-                        <p className="text-xs text-muted-foreground mt-1">
-                          PNG, JPG up to 10MB
-                        </p>
-                      </div>
-                    </div>
+                    </label>
                   )}
+
+                  <div className="space-y-2">
+                    <Label htmlFor="photo-date">{t("workouts.date")}</Label>
+                    <Input
+                      id="photo-date"
+                      type="date"
+                      className="bg-background"
+                      value={photoForm.date}
+                      onChange={(e) => setPhotoForm({ ...photoForm, date: e.target.value })}
+                      required
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="photo-type">Photo Type (Optional)</Label>
+                    <Select
+                      value={photoForm.type || undefined}
+                      onValueChange={(value) => setPhotoForm({ ...photoForm, type: value })}
+                    >
+                      <SelectTrigger className="bg-background">
+                        <SelectValue placeholder="Select type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="front">Front</SelectItem>
+                        <SelectItem value="side">Side</SelectItem>
+                        <SelectItem value="back">Back</SelectItem>
+                        <SelectItem value="other">Other</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="photo-notes">Notes (Optional)</Label>
+                    <Input
+                      id="photo-notes"
+                      type="text"
+                      placeholder="e.g., Morning photo"
+                      className="bg-background"
+                      value={photoForm.notes}
+                      onChange={(e) => setPhotoForm({ ...photoForm, notes: e.target.value })}
+                    />
+                  </div>
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="photo-date">{t("workouts.date")}</Label>
-                  <Input
-                    id="photo-date"
-                    type="date"
-                    className="bg-background"
-                    value={photoForm.date}
-                    onChange={(e) => setPhotoForm({ ...photoForm, date: e.target.value })}
-                    required
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="photo-type">Photo Type (Optional)</Label>
-                  <Select
-                    value={photoForm.type || undefined}
-                    onValueChange={(value) => setPhotoForm({ ...photoForm, type: value })}
+                <div className="flex-shrink-0 pt-2 border-t border-border">
+                  <Button
+                    type="button"
+                    className="w-full bg-primary text-primary-foreground hover:bg-primary/90"
+                    disabled={uploadingPhoto || !photoForm.file}
+                    onClick={(e) => {
+                      e.preventDefault()
+                      e.stopPropagation()
+                      if (!photoForm.file || !photoForm.date) {
+                        toast.error('Please select a photo and date')
+                        return
+                      }
+                      // Create a synthetic form event to call handleUploadPhoto
+                      const syntheticEvent = {
+                        preventDefault: () => {},
+                        stopPropagation: () => {},
+                      } as React.FormEvent
+                      handleUploadPhoto(syntheticEvent)
+                    }}
                   >
-                    <SelectTrigger className="bg-background">
-                      <SelectValue placeholder="Select type" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="front">Front</SelectItem>
-                      <SelectItem value="side">Side</SelectItem>
-                      <SelectItem value="back">Back</SelectItem>
-                      <SelectItem value="other">Other</SelectItem>
-                    </SelectContent>
-                  </Select>
+                    {uploadingPhoto ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Uploading...
+                      </>
+                    ) : (
+                      <>
+                        <Upload className="mr-2 h-4 w-4" />
+                        {t("progress.uploadPhoto")}
+                      </>
+                    )}
+                  </Button>
                 </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="photo-notes">Notes (Optional)</Label>
-                  <Input
-                    id="photo-notes"
-                    type="text"
-                    placeholder="e.g., Morning photo"
-                    className="bg-background"
-                    value={photoForm.notes}
-                    onChange={(e) => setPhotoForm({ ...photoForm, notes: e.target.value })}
-                  />
-                </div>
-
-                <Button
-                  type="submit"
-                  className="w-full bg-primary text-primary-foreground hover:bg-primary/90"
-                  disabled={uploadingPhoto || !photoForm.file}
-                >
-                  {uploadingPhoto ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Uploading...
-                    </>
-                  ) : (
-                    <>
-                      <Upload className="mr-2 h-4 w-4" />
-                      {t("progress.uploadPhoto")}
-                    </>
-                  )}
-                </Button>
               </form>
             </DialogContent>
           </Dialog>

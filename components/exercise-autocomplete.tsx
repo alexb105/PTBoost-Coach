@@ -13,6 +13,7 @@ interface Exercise {
   id: string
   name: string
   display_name: string
+  exercise_type?: "cardio" | "sets"
 }
 
 interface ExerciseAutocompleteProps {
@@ -20,6 +21,7 @@ interface ExerciseAutocompleteProps {
   label?: string
   value: string
   onChange: (value: string) => void
+  onExerciseSelect?: (exercise: Exercise | null) => void
   placeholder?: string
   required?: boolean
   className?: string
@@ -30,6 +32,7 @@ export function ExerciseAutocomplete({
   label = "Exercise Name",
   value,
   onChange,
+  onExerciseSelect,
   placeholder = "e.g., Bench Press",
   required = false,
   className,
@@ -106,6 +109,9 @@ export function ExerciseAutocomplete({
 
       // Set the value to the new exercise
       onChange(data.exercise.display_name)
+      if (onExerciseSelect) {
+        onExerciseSelect(data.exercise)
+      }
       setSearchQuery(data.exercise.display_name)
       setOpen(false)
       
@@ -127,6 +133,9 @@ export function ExerciseAutocomplete({
   const handleSelect = (exercise: Exercise) => {
     const displayName = exercise.display_name
     onChange(displayName)
+    if (onExerciseSelect) {
+      onExerciseSelect(exercise)
+    }
     setSearchQuery(displayName)
     setOpen(false)
     // Ensure the input ref is updated

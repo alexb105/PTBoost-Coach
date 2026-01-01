@@ -6,8 +6,10 @@ import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
+import { Label } from "@/components/ui/label"
 import { ClientHeader } from "@/components/client-header"
-import { ArrowLeft, Trophy, TrendingUp, Calendar, Loader2 } from "lucide-react"
+import { ArrowLeft, Trophy, TrendingUp, Calendar, Loader2, ExternalLink } from "lucide-react"
+import Image from "next/image"
 import { format, parseISO } from "date-fns"
 import { toast } from "sonner"
 import { normalizeExerciseName } from "@/lib/exercise-utils"
@@ -53,6 +55,7 @@ export default function ExercisePage() {
   const [loading, setLoading] = useState(true)
   const [pb, setPb] = useState<ExercisePB | null>(null)
   const [history, setHistory] = useState<PBHistoryEntry[]>([])
+  const [exercise, setExercise] = useState<{ image_url?: string | null; video_url?: string | null } | null>(null)
 
   useEffect(() => {
     fetchExerciseData()
@@ -71,6 +74,7 @@ export default function ExercisePage() {
       const data = await response.json()
       setPb(data.pb)
       setHistory(data.history || [])
+      setExercise(data.exercise || null)
     } catch (error) {
       console.error("Error fetching exercise data:", error)
       toast.error("Failed to load exercise data")
@@ -124,16 +128,16 @@ export default function ExercisePage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center pb-20">
+      <div className="min-h-screen flex items-center justify-center" style={{ paddingBottom: 'calc(5rem + env(safe-area-inset-bottom, 0px))' }}>
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen pb-20">
+    <div className="min-h-screen" style={{ paddingBottom: 'calc(5rem + env(safe-area-inset-bottom, 0px))' }}>
       <ClientHeader />
-      <div className="mx-auto max-w-3xl p-6 space-y-6">
+      <div className="mx-auto max-w-3xl p-4 sm:p-6 space-y-4 sm:space-y-6">
         {/* Header */}
         <div className="flex items-center gap-4">
         <Button
@@ -153,6 +157,43 @@ export default function ExercisePage() {
           </p>
         </div>
       </div>
+
+      {/* Exercise Media */}
+      {(exercise?.image_url || exercise?.video_url) && (
+        <Card className="p-6">
+          <h2 className="text-lg font-semibold mb-4">Exercise Demonstration</h2>
+          <div className="space-y-4">
+            {exercise.image_url && (
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">Image</Label>
+                <div className="relative w-full aspect-video rounded-lg overflow-hidden border">
+                  <Image
+                    src={exercise.image_url}
+                    alt={`${displayName} demonstration`}
+                    fill
+                    className="object-cover"
+                    unoptimized
+                  />
+                </div>
+              </div>
+            )}
+            {exercise.video_url && (
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">Video</Label>
+                <a
+                  href={exercise.video_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-2 text-primary hover:underline"
+                >
+                  <ExternalLink className="h-4 w-4" />
+                  Watch demonstration video
+                </a>
+              </div>
+            )}
+          </div>
+        </Card>
+      )}
 
       {/* Current PB */}
       <Card className="p-6 bg-gradient-to-br from-primary/10 to-primary/5 border-primary/20">

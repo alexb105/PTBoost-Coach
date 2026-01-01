@@ -76,7 +76,20 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const { name, display_name } = await request.json()
+    const { 
+      name, 
+      display_name, 
+      exercise_type,
+      default_sets,
+      default_reps,
+      default_weight,
+      default_duration_minutes,
+      default_distance_km,
+      default_intensity,
+      image_url,
+      video_url,
+      description
+    } = await request.json()
 
     if (!name || !name.trim()) {
       return NextResponse.json(
@@ -84,6 +97,11 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       )
     }
+
+    // Ensure exercise_type is valid, default to 'sets' if missing or invalid
+    // Normalize by trimming and lowercasing to handle any edge cases
+    const normalizedType = exercise_type ? String(exercise_type).trim().toLowerCase() : 'sets'
+    const validExerciseType = ['cardio', 'sets'].includes(normalizedType) ? normalizedType : 'sets'
 
     const supabase = createServerClient()
     
@@ -105,16 +123,58 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Build insert object - explicitly set exercise_type to ensure it's never null/undefined
+    const insertData: any = {
+      name: normalizedName,
+      display_name: displayName,
+      exercise_type: validExerciseType,
+    }
+
+    // Add media URLs if provided
+    if (image_url && image_url.trim()) {
+      insertData.image_url = image_url.trim()
+    }
+    if (video_url && video_url.trim()) {
+      insertData.video_url = video_url.trim()
+    }
+    if (description !== undefined) {
+      insertData.description = description && description.trim() ? description.trim() : null
+    }
+
+    console.log('Inserting exercise with data:', JSON.stringify(insertData, null, 2))
+
+    // Add type-specific defaults
+    if (validExerciseType === 'sets') {
+      if (default_sets !== undefined && default_sets !== null && default_sets !== '') {
+        insertData.default_sets = parseInt(default_sets)
+      }
+      if (default_reps !== undefined && default_reps !== null && default_reps !== '') {
+        insertData.default_reps = default_reps
+      }
+      if (default_weight !== undefined && default_weight !== null && default_weight !== '') {
+        insertData.default_weight = default_weight
+      }
+    } else if (validExerciseType === 'cardio') {
+      if (default_duration_minutes !== undefined && default_duration_minutes !== null && default_duration_minutes !== '') {
+        insertData.default_duration_minutes = parseInt(default_duration_minutes)
+      }
+      if (default_distance_km !== undefined && default_distance_km !== null && default_distance_km !== '') {
+        insertData.default_distance_km = parseFloat(default_distance_km)
+      }
+      if (default_intensity !== undefined && default_intensity !== null && default_intensity !== '') {
+        insertData.default_intensity = default_intensity
+      }
+    }
+
     const { data, error } = await supabase
       .from('exercises')
-      .insert({
-        name: normalizedName,
-        display_name: displayName,
-      })
+      .insert(insertData)
       .select()
       .single()
 
     if (error) {
+      console.error('Database error:', error)
+      console.error('Attempted insert data:', JSON.stringify(insertData, null, 2))
       throw error
     }
 

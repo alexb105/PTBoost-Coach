@@ -73,7 +73,14 @@ export async function POST(
       completed: boolean
       rating?: string
       completed_at?: string
-      bestSet?: { reps?: string; weight?: string; seconds?: string }
+      bestSet?: {
+        reps?: string
+        weight?: string
+        seconds?: string
+        duration_minutes?: string
+        distance_km?: string
+        intensity?: string
+      }
     }> = workout.exercise_completions || []
 
     // Remove completion for this exercise

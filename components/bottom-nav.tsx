@@ -1,5 +1,6 @@
 "use client"
 
+import React from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { Calendar, TrendingUp, MessageCircle, Apple } from "lucide-react"
@@ -10,7 +11,7 @@ import { useLanguage } from "@/contexts/language-context"
 export function BottomNav() {
   const pathname = usePathname()
   const { t } = useLanguage()
-  const { unreadCount } = useMessageNotifications({ enabled: !pathname?.startsWith("/admin") && !pathname?.startsWith("/auth") })
+  const { unreadCount, updateLastSeen, fetchUnreadCount } = useMessageNotifications({ enabled: !pathname?.startsWith("/admin") && !pathname?.startsWith("/auth") })
 
   const navItems = [
     { href: "/", icon: Calendar, label: t("navigation.sessions") },
@@ -25,19 +26,29 @@ export function BottomNav() {
   }
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-[100] border-t border-border/50 bg-card/80 backdrop-blur-xl">
-      <div className="mx-auto flex max-w-2xl items-center justify-around px-2">
+    <nav className="fixed bottom-0 left-0 right-0 z-[100] border-t border-border/50 bg-card/80 backdrop-blur-xl safe-area-bottom">
+      <div className="mx-auto flex max-w-2xl items-center justify-around px-2 pb-safe">
         {navItems.map((item) => {
           const isActive = pathname === item.href
           const Icon = item.icon
-          const showBadge = item.href === "/chat" && unreadCount > 0
+          // Show badge only when there are unread messages and not on chat page
+          const showBadge = item.href === "/chat" && unreadCount > 0 && !isActive
           
+          const handleChatClick = (e: React.MouseEvent) => {
+            if (item.href === "/chat") {
+              // Clear the badge by marking all messages as seen
+              updateLastSeen(new Date().toISOString())
+              fetchUnreadCount()
+            }
+          }
+
           return (
             <Link
               key={item.href}
               href={item.href}
+              onClick={handleChatClick}
               className={cn(
-                "relative flex flex-1 flex-col items-center gap-1.5 py-4 transition-all duration-300",
+                "relative flex flex-1 flex-col items-center gap-1.5 py-3 transition-all duration-300 min-h-[44px] min-w-[44px] touch-manipulation",
                 isActive ? "text-primary" : "text-muted-foreground hover:text-foreground",
               )}
             >

@@ -47,9 +47,15 @@ interface Meal {
   updated_at: string
 }
 
-export function NutritionTracker() {
+interface NutritionTrackerProps {
+  customerId?: string // Optional customerId for admin view
+  onUpdateTargets?: () => void // Optional callback for admin to update targets
+}
+
+export function NutritionTracker({ customerId, onUpdateTargets }: NutritionTrackerProps = {}) {
   const { t, language } = useLanguage()
   const [nutritionTarget, setNutritionTarget] = useState<NutritionTarget | null>(null)
+  const isAdminView = !!customerId
   const [meals, setMeals] = useState<Meal[]>([])
   const [loading, setLoading] = useState(true)
   const [translatedSuggestions, setTranslatedSuggestions] = useState<string | null>(null)
@@ -57,7 +63,13 @@ export function NutritionTracker() {
   const [editingMeal, setEditingMeal] = useState<Meal | null>(null)
   const [deleteMealId, setDeleteMealId] = useState<string | null>(null)
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
-  const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0])
+  const [selectedDate, setSelectedDate] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem(customerId ? `admin-nutrition-${customerId}-date` : 'client-nutrition-date')
+      return saved || new Date().toISOString().split('T')[0]
+    }
+    return new Date().toISOString().split('T')[0]
+  })
   const [showNutritionTracking, setShowNutritionTracking] = useState(false)
   const [mealTemplates, setMealTemplates] = useState<any[]>([])
   const [editingMealTemplate, setEditingMealTemplate] = useState<any | null>(null)
@@ -65,6 +77,7 @@ export function NutritionTracker() {
   const [isTemplatesModalOpen, setIsTemplatesModalOpen] = useState(false)
   const [viewingTemplate, setViewingTemplate] = useState<any | null>(null)
   const [isViewTemplateDialogOpen, setIsViewTemplateDialogOpen] = useState(false)
+  const [isSuggestionsExpanded, setIsSuggestionsExpanded] = useState(false)
 
   // Meal form state
   const [mealForm, setMealForm] = useState({
@@ -151,7 +164,10 @@ export function NutritionTracker() {
 
   const fetchMealTemplates = async () => {
     try {
-      const response = await fetch("/api/customer/meal-templates")
+      const endpoint = isAdminView 
+        ? `/api/admin/customers/${customerId}/meal-templates`
+        : "/api/customer/meal-templates"
+      const response = await fetch(endpoint)
       if (response.ok) {
         const data = await response.json()
         setMealTemplates(data.templates || [])
@@ -163,7 +179,10 @@ export function NutritionTracker() {
 
   const fetchNutritionTarget = async () => {
     try {
-      const response = await fetch("/api/customer/nutrition")
+      const endpoint = isAdminView
+        ? `/api/admin/customers/${customerId}/nutrition`
+        : "/api/customer/nutrition"
+      const response = await fetch(endpoint)
       if (response.ok) {
         const data = await response.json()
         setNutritionTarget(data.target)
@@ -178,7 +197,10 @@ export function NutritionTracker() {
   const fetchMeals = async () => {
     try {
       setLoading(true)
-      const response = await fetch(`/api/customer/meals?date=${selectedDate}`)
+      const endpoint = isAdminView
+        ? `/api/admin/customers/${customerId}/meals?date=${selectedDate}`
+        : `/api/customer/meals?date=${selectedDate}`
+      const response = await fetch(endpoint)
       if (response.ok) {
         const data = await response.json()
         setMeals(data.meals || [])
@@ -254,8 +276,12 @@ export function NutritionTracker() {
       }
 
       const url = editingMeal
-        ? `/api/customer/meals/${editingMeal.id}`
-        : "/api/customer/meals"
+        ? isAdminView
+          ? `/api/admin/customers/${customerId}/meals/${editingMeal.id}`
+          : `/api/customer/meals/${editingMeal.id}`
+        : isAdminView
+          ? `/api/admin/customers/${customerId}/meals`
+          : "/api/customer/meals"
       
       const method = editingMeal ? "PUT" : "POST"
 
@@ -283,7 +309,10 @@ export function NutritionTracker() {
     if (!deleteMealId) return
 
     try {
-      const response = await fetch(`/api/customer/meals/${deleteMealId}`, {
+      const endpoint = isAdminView
+        ? `/api/admin/customers/${customerId}/meals/${deleteMealId}`
+        : `/api/customer/meals/${deleteMealId}`
+      const response = await fetch(endpoint, {
         method: "DELETE",
       })
 
@@ -322,7 +351,10 @@ export function NutritionTracker() {
         items: items,
       }
 
-      const response = await fetch("/api/customer/meal-templates", {
+      const endpoint = isAdminView
+        ? `/api/admin/customers/${customerId}/meal-templates`
+        : "/api/customer/meal-templates"
+      const response = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(templateData),
@@ -402,7 +434,10 @@ export function NutritionTracker() {
         items: items,
       }
 
-      const response = await fetch(`/api/customer/meal-templates/${editingMealTemplate.id}`, {
+      const endpoint = isAdminView
+        ? `/api/admin/customers/${customerId}/meal-templates/${editingMealTemplate.id}`
+        : `/api/customer/meal-templates/${editingMealTemplate.id}`
+      const response = await fetch(endpoint, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(templateData),
@@ -424,7 +459,10 @@ export function NutritionTracker() {
 
   const handleDeleteTemplate = async (templateId: string) => {
     try {
-      const response = await fetch(`/api/customer/meal-templates/${templateId}`, {
+      const endpoint = isAdminView
+        ? `/api/admin/customers/${customerId}/meal-templates/${templateId}`
+        : `/api/customer/meal-templates/${templateId}`
+      const response = await fetch(endpoint, {
         method: "DELETE",
       })
 
@@ -499,7 +537,7 @@ export function NutritionTracker() {
 
   if (loading) {
     return (
-      <div className="mx-auto max-w-2xl p-4">
+      <div className="mx-auto max-w-2xl p-4 sm:p-6">
         <div className="flex items-center justify-center py-12">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
         </div>
@@ -509,13 +547,21 @@ export function NutritionTracker() {
 
   return (
     <div className="mx-auto max-w-2xl p-4">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-foreground">{t("nutrition.title")}</h1>
-        <p className="text-sm text-muted-foreground">{t("nutrition.trackDailyIntake")}</p>
-        {!nutritionTarget && (
-          <p className="mt-2 text-xs text-muted-foreground">
-            {t("nutrition.noTargetsSet")}
-          </p>
+      <div className="mb-6 flex items-start justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">{t("nutrition.title")}</h1>
+          <p className="text-sm text-muted-foreground">{t("nutrition.trackDailyIntake")}</p>
+          {!nutritionTarget && (
+            <p className="mt-2 text-xs text-muted-foreground">
+              {t("nutrition.noTargetsSet")}
+            </p>
+          )}
+        </div>
+        {isAdminView && onUpdateTargets && (
+          <Button onClick={onUpdateTargets} className="gap-2">
+            <Plus className="h-4 w-4" />
+            {nutritionTarget ? t("admin.updateTargets") : t("admin.setTargets")}
+          </Button>
         )}
       </div>
 
@@ -553,19 +599,46 @@ export function NutritionTracker() {
       )}
 
       {/* Admin Suggestions */}
-      {nutritionTarget?.suggestions && (
-        <Card className="mb-6 bg-primary/5 border-primary/20 p-4">
-          <div className="flex items-start gap-3">
-            <Apple className="h-5 w-5 text-primary mt-0.5" />
-            <div className="flex-1">
-              <h3 className="font-semibold text-foreground mb-1">{t("nutrition.suggestions")}</h3>
-              <p className="text-sm text-muted-foreground whitespace-pre-line">
-                {translatedSuggestions || nutritionTarget.suggestions}
-              </p>
+      {nutritionTarget?.suggestions && (() => {
+        const suggestionsText = translatedSuggestions || nutritionTarget.suggestions || ""
+        const lines = suggestionsText.split('\n')
+        const shouldTruncate = lines.length > 4
+        const displayLines = isSuggestionsExpanded || !shouldTruncate ? lines : lines.slice(0, 4)
+        const displayText = displayLines.join('\n')
+        
+        return (
+          <Card className="mb-6 bg-primary/5 border-primary/20 p-4">
+            <div className="flex items-start gap-3">
+              <Apple className="h-5 w-5 text-primary mt-0.5" />
+              <div className="flex-1">
+                <h3 className="font-semibold text-foreground mb-1">{t("nutrition.suggestions")}</h3>
+                <p className="text-sm text-muted-foreground whitespace-pre-line">
+                  {displayText}
+                </p>
+                {shouldTruncate && (
+                  <button
+                    type="button"
+                    className="mt-3 flex items-center gap-1.5 px-2 py-1.5 text-xs font-medium text-primary hover:text-primary/90 hover:bg-primary/10 rounded-md transition-all duration-200 group"
+                    onClick={() => setIsSuggestionsExpanded(!isSuggestionsExpanded)}
+                  >
+                    {isSuggestionsExpanded ? (
+                      <>
+                        <ChevronUp className="h-3.5 w-3.5 transition-transform group-hover:scale-110" />
+                        <span>{t("common.showLess")}</span>
+                      </>
+                    ) : (
+                      <>
+                        <ChevronDown className="h-3.5 w-3.5 transition-transform group-hover:scale-110" />
+                        <span>{t("common.showMore")}</span>
+                      </>
+                    )}
+                  </button>
+                )}
+              </div>
             </div>
-          </div>
-        </Card>
-      )}
+          </Card>
+        )
+      })()}
 
       {/* Calorie Overview - Only show if there are meals with calories */}
       {totalCalories > 0 && (
@@ -633,60 +706,75 @@ export function NutritionTracker() {
       )}
 
       {/* Meals */}
-      <div className="mb-4 flex items-center justify-between">
-        <div className="flex-1">
-          <h2 className="font-semibold text-foreground">{isToday ? t("nutrition.todayMeals") : `${t("nutrition.meals")} - ${format(new Date(selectedDate), "MMM d, yyyy")}`}</h2>
-          <div className="mt-2 flex items-center gap-2">
-            <Button
+      <div className="mb-4 space-y-3">
+        <div className="flex items-center justify-between gap-2">
+          <h2 className="font-semibold text-foreground text-base sm:text-lg">{isToday ? t("nutrition.todayMeals") : `${t("nutrition.meals")} - ${format(new Date(selectedDate), "MMM d, yyyy")}`}</h2>
+          <div className="flex gap-2 flex-shrink-0">
+            <Button 
               variant="outline"
-              size="icon"
-              onClick={() => {
-                const date = new Date(selectedDate)
-                date.setDate(date.getDate() - 1)
-                setSelectedDate(date.toISOString().split('T')[0])
-              }}
-              className="h-9 w-9"
+              size="sm" 
+              onClick={() => setIsTemplatesModalOpen(true)}
+              className="h-8 px-2 sm:px-3"
             >
-              <ChevronLeft className="h-4 w-4" />
+              <BookOpen className="h-4 w-4 sm:mr-1" />
+              <span className="hidden sm:inline">{t("templates.title")}</span>
             </Button>
-            <Input
-              type="date"
-              value={selectedDate}
-              onChange={(e) => setSelectedDate(e.target.value)}
-              className="w-auto"
-            />
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={() => {
-                const date = new Date(selectedDate)
-                date.setDate(date.getDate() + 1)
-                setSelectedDate(date.toISOString().split('T')[0])
-              }}
-              disabled={selectedDate >= new Date().toISOString().split('T')[0]}
-              className="h-9 w-9"
+            <Button 
+              size="sm" 
+              onClick={handleAddMeal}
+              className="bg-primary text-primary-foreground hover:bg-primary/90 h-8 px-2 sm:px-3"
             >
-              <ChevronRight className="h-4 w-4" />
+              <Plus className="h-4 w-4 sm:mr-1" />
+              <span className="hidden sm:inline">{t("nutrition.addMeal")}</span>
             </Button>
           </div>
         </div>
-        <div className="flex gap-2">
-          <Button 
+        <div className="flex items-center gap-2">
+          <Button
             variant="outline"
-            size="sm" 
-            onClick={() => setIsTemplatesModalOpen(true)}
+            size="icon"
+            onClick={() => {
+              const date = new Date(selectedDate)
+              date.setDate(date.getDate() - 1)
+              const newDate = date.toISOString().split('T')[0]
+              setSelectedDate(newDate)
+              if (typeof window !== 'undefined') {
+                localStorage.setItem(customerId ? `admin-nutrition-${customerId}-date` : 'client-nutrition-date', newDate)
+              }
+            }}
+            className="h-9 w-9 flex-shrink-0"
           >
-            <BookOpen className="mr-1 h-4 w-4" />
-            {t("templates.title")}
+            <ChevronLeft className="h-4 w-4" />
           </Button>
-          <Button 
-            size="sm" 
-            onClick={handleAddMeal}
-            className="bg-primary text-primary-foreground hover:bg-primary/90"
+          <Input
+            type="date"
+            value={selectedDate}
+            onChange={(e) => {
+              const newDate = e.target.value
+              setSelectedDate(newDate)
+              if (typeof window !== 'undefined') {
+                localStorage.setItem(customerId ? `admin-nutrition-${customerId}-date` : 'client-nutrition-date', newDate)
+              }
+            }}
+            className="flex-1 min-w-0"
+          />
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => {
+              const date = new Date(selectedDate)
+              date.setDate(date.getDate() + 1)
+              const newDate = date.toISOString().split('T')[0]
+              setSelectedDate(newDate)
+              if (typeof window !== 'undefined') {
+                localStorage.setItem(customerId ? `admin-nutrition-${customerId}-date` : 'client-nutrition-date', newDate)
+              }
+            }}
+            disabled={selectedDate >= new Date().toISOString().split('T')[0]}
+            className="h-9 w-9 flex-shrink-0"
           >
-          <Plus className="mr-1 h-4 w-4" />
-            {t("nutrition.addMeal")}
-        </Button>
+            <ChevronRight className="h-4 w-4" />
+          </Button>
         </div>
       </div>
 

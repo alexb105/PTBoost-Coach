@@ -7,7 +7,7 @@ import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { CheckCircle2, Clock, ArrowLeft, Loader2, Smile, Meh, Frown, AlertCircle, X, ExternalLink } from "lucide-react"
+import { CheckCircle2, Clock, ArrowLeft, Loader2, Smile, Meh, Frown, AlertCircle, X, ExternalLink, Info, Trophy } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { format, parseISO } from "date-fns"
@@ -24,6 +24,9 @@ export interface ExerciseCompletion {
     reps?: string
     weight?: string
     seconds?: string
+    duration_minutes?: string
+    distance_km?: string
+    intensity?: string
   }
 }
 
@@ -43,51 +46,146 @@ interface WorkoutDetailViewProps {
   onBack: () => void
   onComplete?: (workoutId: string) => Promise<void>
   onUncomplete?: (workoutId: string) => Promise<void>
-  onExerciseComplete?: (workoutId: string, exerciseIndex: number, rating: "easy" | "good" | "hard" | "too_hard", bestSet?: { reps?: string; weight?: string; seconds?: string }) => Promise<void>
+  onExerciseComplete?: (workoutId: string, exerciseIndex: number, rating: "easy" | "good" | "hard" | "too_hard", bestSet?: { reps?: string; weight?: string; seconds?: string; duration_minutes?: string; distance_km?: string; intensity?: string }) => Promise<void>
   onExerciseUncomplete?: (workoutId: string, exerciseIndex: number) => Promise<void>
+  customerId?: string // Optional customer ID for admin context
 }
 
 // Helper function to parse exercise string into structured format
 function parseExercise(exerciseStr: string): {
   name: string
+  exercise_type: "cardio" | "sets"
   sets: string
   reps: string
   type: "reps" | "seconds"
   weight?: string
+  duration_minutes?: string
+  distance_km?: string
+  intensity?: string
   notes?: string
 } {
   if (!exerciseStr || !exerciseStr.trim()) {
-    return { name: "", sets: "", reps: "", type: "reps", weight: "", notes: "" }
+    return { name: "", exercise_type: "sets", sets: "", reps: "", type: "reps", weight: "", notes: "" }
   }
 
-  const parts = exerciseStr.split(" - ")
-  const notes = parts.length > 1 ? parts[1].trim() : ""
-  let mainPart = parts[0].trim()
+  // Check if this is a cardio exercise format (contains "Duration:", "Distance:", or "Intensity:")
+  const isCardioFormat = exerciseStr.includes("Duration:") || exerciseStr.includes("Distance:") || exerciseStr.includes("Intensity:")
   
-  const weightMatch = mainPart.match(/@\s*([^-]+?)(?:\s*-\s*|$)/)
-  let weight = ""
-  if (weightMatch) {
-    weight = weightMatch[1].trim()
-    mainPart = mainPart.replace(/@\s*[^-]+?(\s*-\s*|$)/, "").trim()
+  if (isCardioFormat) {
+    // Cardio format: "Exercise Name - Duration: 30min, Distance: 5.0km, Intensity: Moderate - Notes"
+    const parts = exerciseStr.split(" - ")
+    let notes = ""
+    let mainPart = parts[0].trim()
+    let cardioData = ""
+    
+    // Check if last part looks like notes (doesn't contain cardio keywords)
+    if (parts.length > 1) {
+      const lastPart = parts[parts.length - 1]
+      if (!lastPart.includes("Duration:") && !lastPart.includes("Distance:") && !lastPart.includes("Intensity:")) {
+        notes = lastPart.trim()
+        // Everything between first and last is cardio data
+        cardioData = parts.slice(1, -1).join(" - ").trim()
+      } else {
+        // No notes, all middle parts are cardio data
+        cardioData = parts.slice(1).join(" - ").trim()
+      }
+    }
+    
+    // Extract cardio values
+    let duration_minutes = ""
+    let distance_km = ""
+    let intensity = ""
+    
+    const durationMatch = cardioData.match(/Duration:\s*(\d+)\s*min/i)
+    if (durationMatch) {
+      duration_minutes = durationMatch[1]
+    }
+    
+    const distanceMatch = cardioData.match(/Distance:\s*([\d.]+)\s*km/i)
+    if (distanceMatch) {
+      distance_km = distanceMatch[1]
+    }
+    
+    const intensityMatch = cardioData.match(/Intensity:\s*([^,]+)/i)
+    if (intensityMatch) {
+      intensity = intensityMatch[1].trim()
+    }
+    
+    return { 
+      name: mainPart, 
+      exercise_type: "cardio", 
+      sets: "", 
+      reps: "", 
+      type: "reps", 
+      weight: "", 
+      duration_minutes,
+      distance_km,
+      intensity,
+      notes 
+    }
+  } else {
+    // Sets-based format: "Exercise Name 3x8 @ 50kg - Notes"
+    const parts = exerciseStr.split(" - ")
+    const notes = parts.length > 1 ? parts[parts.length - 1].trim() : ""
+    let mainPart = parts[0].trim()
+    
+    const weightMatch = mainPart.match(/@\s*([^-]+?)(?:\s*-\s*|$)/)
+    let weight = ""
+    if (weightMatch) {
+      weight = weightMatch[1].trim()
+      mainPart = mainPart.replace(/@\s*[^-]+?(\s*-\s*|$)/, "").trim()
+    }
+    
+    const setsRepsMatch = mainPart.match(/(\d+)x([\d-]+)(s)?/)
+    let sets = ""
+    let reps = ""
+    let type: "reps" | "seconds" = "reps"
+    if (setsRepsMatch) {
+      sets = setsRepsMatch[1]
+      reps = setsRepsMatch[2]
+      type = setsRepsMatch[3] === "s" ? "seconds" : "reps"
+      mainPart = mainPart.replace(/\d+x[\d-]+s?/, "").trim()
+    }
+    
+    const name = mainPart.trim()
+    
+    return { name, exercise_type: "sets", sets, reps, type, weight, notes }
   }
-  
-  const setsRepsMatch = mainPart.match(/(\d+)x([\d-]+)(s)?/)
-  let sets = ""
-  let reps = ""
-  let type: "reps" | "seconds" = "reps"
-  if (setsRepsMatch) {
-    sets = setsRepsMatch[1]
-    reps = setsRepsMatch[2]
-    type = setsRepsMatch[3] === "s" ? "seconds" : "reps"
-    mainPart = mainPart.replace(/\d+x[\d-]+s?/, "").trim()
-  }
-  
-  const name = mainPart.trim()
-  
-  return { name, sets, reps, type, weight, notes }
 }
 
-export function WorkoutDetailView({ workout, onBack, onComplete, onUncomplete, onExerciseComplete, onExerciseUncomplete }: WorkoutDetailViewProps) {
+// Helper function to convert video URLs to embed format
+function convertToEmbedUrl(url: string): string {
+  if (!url) return url
+  
+  // YouTube URLs
+  // Handle various YouTube URL formats:
+  // - https://www.youtube.com/watch?v=VIDEO_ID
+  // - https://youtube.com/watch?v=VIDEO_ID
+  // - https://youtu.be/VIDEO_ID
+  // - https://www.youtube.com/embed/VIDEO_ID (already embed format)
+  const youtubeRegex = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/
+  const youtubeMatch = url.match(youtubeRegex)
+  
+  if (youtubeMatch && youtubeMatch[1]) {
+    return `https://www.youtube.com/embed/${youtubeMatch[1]}`
+  }
+  
+  // Vimeo URLs
+  // Handle various Vimeo URL formats:
+  // - https://vimeo.com/VIDEO_ID
+  // - https://player.vimeo.com/video/VIDEO_ID (already embed format)
+  const vimeoRegex = /(?:vimeo\.com\/|player\.vimeo\.com\/video\/)(\d+)/
+  const vimeoMatch = url.match(vimeoRegex)
+  
+  if (vimeoMatch && vimeoMatch[1]) {
+    return `https://player.vimeo.com/video/${vimeoMatch[1]}`
+  }
+  
+  // If it's already an embed URL or doesn't match patterns, return as-is
+  return url
+}
+
+export function WorkoutDetailView({ workout, onBack, onComplete, onUncomplete, onExerciseComplete, onExerciseUncomplete, customerId }: WorkoutDetailViewProps) {
   const router = useRouter()
   const { t } = useLanguage()
   const [isCompleting, setIsCompleting] = useState(false)
@@ -98,15 +196,97 @@ export function WorkoutDetailView({ workout, onBack, onComplete, onUncomplete, o
   const [exerciseCompletions, setExerciseCompletions] = useState<ExerciseCompletion[]>(
     workout.exercise_completions || []
   )
-  const [bestSet, setBestSet] = useState<{ reps?: string; weight?: string; seconds?: string }>({})
+  const [bestSet, setBestSet] = useState<{ 
+    reps?: string; 
+    weight?: string; 
+    seconds?: string;
+    duration_minutes?: string;
+    distance_km?: string;
+    intensity?: string;
+  }>({})
   const [selectedRating, setSelectedRating] = useState<"easy" | "good" | "hard" | "too_hard" | null>(null)
+  const [infoDialogOpen, setInfoDialogOpen] = useState(false)
+  const [selectedExerciseInfo, setSelectedExerciseInfo] = useState<{
+    name: string
+    video_url?: string | null
+    image_url?: string | null
+    display_name?: string
+    description?: string | null
+  } | null>(null)
+  const [loadingExerciseInfo, setLoadingExerciseInfo] = useState(false)
+  const [exerciseInfoCache, setExerciseInfoCache] = useState<Record<string, { video_url?: string | null; description?: string | null }>>({})
+  const [pbDialogOpen, setPbDialogOpen] = useState(false)
+  const [selectedExerciseName, setSelectedExerciseName] = useState<string>("")
+  const [loadingPB, setLoadingPB] = useState(false)
+  const [pb, setPb] = useState<any>(null)
+  const [pbHistory, setPbHistory] = useState<any[]>([])
 
   // Update exercise completions when workout prop changes
   useEffect(() => {
     if (workout.exercise_completions) {
       setExerciseCompletions(workout.exercise_completions)
+    } else {
+      setExerciseCompletions([])
     }
-  }, [workout.exercise_completions])
+    // Also update completed status
+    setIsCompleted(workout.completed || false)
+  }, [workout.exercise_completions, workout.completed, workout.id])
+
+  // Pre-fetch exercise info to determine which exercises have content
+  useEffect(() => {
+    const fetchExerciseInfo = async () => {
+      if (!workout.exercises || workout.exercises.length === 0) return
+      
+      const infoPromises = workout.exercises.map(async (exerciseStr) => {
+        const normalizedName = extractAndNormalizeExerciseName(exerciseStr.split(' - ')[0].trim())
+        const encodedName = encodeURIComponent(normalizedName)
+        
+        // Skip if already cached
+        if (exerciseInfoCache[normalizedName]) return
+        
+        try {
+          const apiUrl = customerId 
+            ? `/api/admin/exercises/info/${encodedName}`
+            : `/api/customer/exercises/${encodedName}/info`
+          
+          const response = await fetch(apiUrl, {
+            credentials: 'include',
+          })
+          
+          if (response.ok) {
+            const data = await response.json()
+            return {
+              name: normalizedName,
+              video_url: data.exercise?.video_url,
+              description: data.exercise?.description,
+            }
+          }
+        } catch (error) {
+          console.error('Error fetching exercise info:', error)
+        }
+        return null
+      })
+      
+      const results = await Promise.all(infoPromises)
+      const newCache: Record<string, { video_url?: string | null; description?: string | null }> = {}
+      
+      results.forEach((result) => {
+        if (result) {
+          newCache[result.name] = {
+            video_url: result.video_url,
+            description: result.description,
+          }
+        }
+      })
+      
+      if (Object.keys(newCache).length > 0) {
+        setExerciseInfoCache(prev => ({ ...prev, ...newCache }))
+      }
+    }
+    
+    fetchExerciseInfo()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [workout.exercises, customerId])
 
   const handleComplete = async () => {
     if (!onComplete) return
@@ -194,7 +374,9 @@ export function WorkoutDetailView({ workout, onBack, onComplete, onUncomplete, o
       setIsSubmittingFeedback(true)
       await onExerciseComplete(workout.id, selectedExerciseIndex, selectedRating, bestSet)
       
-      // Update local state
+      // The API call should have updated the database, and the parent component
+      // should refresh the workout data. We update local state optimistically,
+      // but the parent component's refresh will ensure we have the latest from DB.
       setExerciseCompletions(prev => [
         ...prev.filter(ec => ec.exerciseIndex !== selectedExerciseIndex),
         {
@@ -247,9 +429,10 @@ export function WorkoutDetailView({ workout, onBack, onComplete, onUncomplete, o
 
   const selectedExercise = selectedExerciseIndex !== null ? parsedExercises[selectedExerciseIndex] : null
   const isTimeBased = selectedExercise?.type === "seconds"
+  const isCardio = selectedExercise?.exercise_type === "cardio"
 
   return (
-    <div className="mx-auto max-w-3xl p-6 space-y-6 pb-20">
+    <div className="mx-auto max-w-3xl p-4 sm:p-6 space-y-4 sm:space-y-6" style={{ paddingBottom: 'calc(5rem + env(safe-area-inset-bottom, 0px))' }}>
       {/* Header */}
       <div className="flex items-center gap-4">
         <Button
@@ -362,29 +545,192 @@ export function WorkoutDetailView({ workout, onBack, onComplete, onUncomplete, o
                           )}
                         </div>
                       </div>
+                      <div className="flex items-center gap-1">
+                        {/* PB Trophy Button */}
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={async () => {
+                            const normalizedName = extractAndNormalizeExerciseName(exercise.name)
+                            const encodedName = encodeURIComponent(normalizedName)
+                            
+                            setLoadingPB(true)
+                            setSelectedExerciseName(exercise.name)
+                            setPbDialogOpen(true)
+                            
+                            try {
+                              // Use admin API if customerId is provided (admin context), otherwise use customer API
+                              const apiUrl = customerId 
+                                ? `/api/admin/customers/${customerId}/exercises/${encodedName}`
+                                : `/api/customer/exercises/${encodedName}`
+                              
+                              const response = await fetch(apiUrl, {
+                                credentials: 'include',
+                              })
+                              
+                              if (!response.ok) {
+                                const errorData = await response.json().catch(() => ({}))
+                                
+                                if (response.status === 401) {
+                                  toast.error("Please log in to view personal bests")
+                                  setPb(null)
+                                  setPbHistory([])
+                                  return
+                                }
+                                
+                                throw new Error(errorData.error || `Failed to fetch exercise PB: ${response.status} ${response.statusText}`)
+                              }
+                              
+                              const data = await response.json()
+                              setPb(data.pb || null)
+                              setPbHistory(data.history || [])
+                            } catch (error: any) {
+                              console.error("Error fetching exercise PB:", error)
+                              if (error.message && !error.message.includes("Please log in")) {
+                                toast.error(error.message || "Failed to load exercise personal bests")
+                              }
+                              setPb(null)
+                              setPbHistory([])
+                            } finally {
+                              setLoadingPB(false)
+                            }
+                          }}
+                          className="h-8 w-8 text-primary hover:text-primary hover:bg-primary/10"
+                          title="View Personal Best"
+                        >
+                          <Trophy className="h-4 w-4" />
+                        </Button>
+                        
+                        {/* Info Button */}
+                        {(() => {
+                          // Check cache to see if exercise has video or description
+                          const normalizedName = extractAndNormalizeExerciseName(exercise.name)
+                          const cachedInfo = exerciseInfoCache[normalizedName]
+                          
+                          // Only show button if we know there's content (video or description)
+                          if (cachedInfo && !cachedInfo.video_url && !cachedInfo.description) {
+                            return null
+                          }
+                          
+                          // Show button if we have content or haven't checked yet
+                          const hasContent = cachedInfo ? (cachedInfo.video_url || cachedInfo.description) : true
+                          
+                          if (!hasContent && cachedInfo) {
+                            return null
+                          }
+                          
+                          return (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={async () => {
+                                const encodedName = encodeURIComponent(normalizedName)
+                                
+                                setLoadingExerciseInfo(true)
+                                setInfoDialogOpen(true)
+                                setSelectedExerciseInfo({ name: exercise.name })
+                                
+                                try {
+                                  // Use admin API if customerId is provided (admin context), otherwise use customer API
+                                  const apiUrl = customerId 
+                                    ? `/api/admin/exercises/info/${encodedName}`
+                                    : `/api/customer/exercises/${encodedName}/info`
+                                  
+                                  const response = await fetch(apiUrl, {
+                                    credentials: 'include',
+                                  })
+                                  
+                                  if (response.ok) {
+                                    const data = await response.json()
+                                    const exerciseData = {
+                                      name: exercise.name,
+                                      video_url: data.exercise?.video_url,
+                                      image_url: data.exercise?.image_url,
+                                      display_name: data.exercise?.display_name,
+                                      description: data.exercise?.description,
+                                    }
+                                    
+                                    // Cache the info
+                                    setExerciseInfoCache(prev => ({
+                                      ...prev,
+                                      [normalizedName]: {
+                                        video_url: exerciseData.video_url,
+                                        description: exerciseData.description,
+                                      }
+                                    }))
+                                    
+                                    // Always set the exercise data, even if no video/description
+                                    setSelectedExerciseInfo(exerciseData)
+                                  } else {
+                                    // Exercise info not found, cache that there's no info
+                                    setExerciseInfoCache(prev => ({
+                                      ...prev,
+                                      [normalizedName]: { video_url: null, description: null }
+                                    }))
+                                    setSelectedExerciseInfo({ name: exercise.name })
+                                  }
+                                } catch (error) {
+                                  console.error('Error fetching exercise info:', error)
+                                  toast.error('Failed to load exercise information')
+                                  setSelectedExerciseInfo({ name: exercise.name })
+                                } finally {
+                                  setLoadingExerciseInfo(false)
+                                }
+                              }}
+                              className="h-8 w-8 text-muted-foreground hover:text-foreground"
+                              title="View Exercise Info"
+                            >
+                              <Info className="h-4 w-4" />
+                            </Button>
+                          )
+                        })()}
+                      </div>
                     </div>
 
                     <Separator />
 
                     {/* Exercise Details */}
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                      <div className="space-y-1">
-                        <p className="text-xs text-muted-foreground uppercase tracking-wide">Sets</p>
-                        <p className="text-lg font-semibold text-foreground">{exercise.sets || "-"}</p>
+                    {exercise.exercise_type === "cardio" ? (
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                        {exercise.duration_minutes && (
+                          <div className="space-y-1">
+                            <p className="text-xs text-muted-foreground uppercase tracking-wide">Duration</p>
+                            <p className="text-lg font-semibold text-foreground">{exercise.duration_minutes} min</p>
+                          </div>
+                        )}
+                        {exercise.distance_km && (
+                          <div className="space-y-1">
+                            <p className="text-xs text-muted-foreground uppercase tracking-wide">Distance</p>
+                            <p className="text-lg font-semibold text-foreground">{exercise.distance_km} km</p>
+                          </div>
+                        )}
+                        {exercise.intensity && (
+                          <div className="space-y-1">
+                            <p className="text-xs text-muted-foreground uppercase tracking-wide">Intensity</p>
+                            <p className="text-lg font-semibold text-foreground">{exercise.intensity}</p>
+                          </div>
+                        )}
                       </div>
-                      <div className="space-y-1">
-                        <p className="text-xs text-muted-foreground uppercase tracking-wide">
-                          {exercise.type === "seconds" ? "Seconds" : "Reps"}
-                        </p>
-                        <p className="text-lg font-semibold text-foreground">{exercise.reps || "-"}</p>
-                      </div>
-                      {exercise.weight && (
+                    ) : (
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                         <div className="space-y-1">
-                          <p className="text-xs text-muted-foreground uppercase tracking-wide">Weight</p>
-                          <p className="text-lg font-semibold text-foreground">{exercise.weight}</p>
+                          <p className="text-xs text-muted-foreground uppercase tracking-wide">Sets</p>
+                          <p className="text-lg font-semibold text-foreground">{exercise.sets || "-"}</p>
                         </div>
-                      )}
-                    </div>
+                        <div className="space-y-1">
+                          <p className="text-xs text-muted-foreground uppercase tracking-wide">
+                            {exercise.type === "seconds" ? "Seconds" : "Reps"}
+                          </p>
+                          <p className="text-lg font-semibold text-foreground">{exercise.reps || "-"}</p>
+                        </div>
+                        {exercise.weight && (
+                          <div className="space-y-1">
+                            <p className="text-xs text-muted-foreground uppercase tracking-wide">Weight</p>
+                            <p className="text-lg font-semibold text-foreground">{exercise.weight}</p>
+                          </div>
+                        )}
+                      </div>
+                    )}
 
                     {/* Complete/Uncomplete Exercise Button */}
                     {!completed && (isToday || isPast) && (
@@ -517,53 +863,95 @@ export function WorkoutDetailView({ workout, onBack, onComplete, onUncomplete, o
             // Step 2: Enter Best Set (Optional)
             <div className="space-y-4 py-4">
               <div className="space-y-2">
-                <Label>Best Set (Optional)</Label>
+                <Label>{isCardio ? "Performance Details (Optional)" : "Best Set (Optional)"}</Label>
                 <p className="text-xs text-muted-foreground">
                   Record your best performance for this exercise
                 </p>
               </div>
               
-              <div className="grid grid-cols-2 gap-3">
-                {!isTimeBased ? (
-                  <>
-                    <div className="space-y-2">
-                      <Label htmlFor="best-reps">Reps</Label>
-                      <Input
-                        id="best-reps"
-                        type="number"
-                        min="1"
-                        value={bestSet.reps || ""}
-                        onChange={(e) => setBestSet({ ...bestSet, reps: e.target.value })}
-                        placeholder="e.g., 12"
-                        className="bg-background"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="best-weight">Weight (optional)</Label>
-                      <Input
-                        id="best-weight"
-                        value={bestSet.weight || ""}
-                        onChange={(e) => setBestSet({ ...bestSet, weight: e.target.value })}
-                        placeholder="e.g., 50kg"
-                        className="bg-background"
-                      />
-                    </div>
-                  </>
-                ) : (
-                  <div className="space-y-2 col-span-2">
-                    <Label htmlFor="best-seconds">Seconds</Label>
+              {isCardio ? (
+                // Cardio exercise fields
+                <div className="grid grid-cols-1 gap-3">
+                  <div className="space-y-2">
+                    <Label htmlFor="best-duration">Duration (minutes)</Label>
                     <Input
-                      id="best-seconds"
+                      id="best-duration"
                       type="number"
                       min="1"
-                      value={bestSet.seconds || ""}
-                      onChange={(e) => setBestSet({ ...bestSet, seconds: e.target.value })}
-                      placeholder="e.g., 45"
+                      value={bestSet.duration_minutes || ""}
+                      onChange={(e) => setBestSet({ ...bestSet, duration_minutes: e.target.value })}
+                      placeholder="e.g., 30"
                       className="bg-background"
                     />
                   </div>
-                )}
-              </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="best-distance">Distance (km)</Label>
+                    <Input
+                      id="best-distance"
+                      type="number"
+                      step="0.1"
+                      min="0"
+                      value={bestSet.distance_km || ""}
+                      onChange={(e) => setBestSet({ ...bestSet, distance_km: e.target.value })}
+                      placeholder="e.g., 5.0"
+                      className="bg-background"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="best-intensity">Intensity (optional)</Label>
+                    <Input
+                      id="best-intensity"
+                      value={bestSet.intensity || ""}
+                      onChange={(e) => setBestSet({ ...bestSet, intensity: e.target.value })}
+                      placeholder="e.g., Moderate, High, Low"
+                      className="bg-background"
+                    />
+                  </div>
+                </div>
+              ) : (
+                // Sets-based exercise fields
+                <div className="grid grid-cols-2 gap-3">
+                  {!isTimeBased ? (
+                    <>
+                      <div className="space-y-2">
+                        <Label htmlFor="best-reps">Reps</Label>
+                        <Input
+                          id="best-reps"
+                          type="number"
+                          min="1"
+                          value={bestSet.reps || ""}
+                          onChange={(e) => setBestSet({ ...bestSet, reps: e.target.value })}
+                          placeholder="e.g., 12"
+                          className="bg-background"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="best-weight">Weight (optional)</Label>
+                        <Input
+                          id="best-weight"
+                          value={bestSet.weight || ""}
+                          onChange={(e) => setBestSet({ ...bestSet, weight: e.target.value })}
+                          placeholder="e.g., 50kg"
+                          className="bg-background"
+                        />
+                      </div>
+                    </>
+                  ) : (
+                    <div className="space-y-2 col-span-2">
+                      <Label htmlFor="best-seconds">Seconds</Label>
+                      <Input
+                        id="best-seconds"
+                        type="number"
+                        min="1"
+                        value={bestSet.seconds || ""}
+                        onChange={(e) => setBestSet({ ...bestSet, seconds: e.target.value })}
+                        placeholder="e.g., 45"
+                        className="bg-background"
+                      />
+                    </div>
+                  )}
+                </div>
+              )}
 
               <div className="flex gap-2 pt-2">
                 <Button
@@ -592,7 +980,182 @@ export function WorkoutDetailView({ workout, onBack, onComplete, onUncomplete, o
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Exercise Info Dialog */}
+      <Dialog open={infoDialogOpen} onOpenChange={setInfoDialogOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{selectedExerciseInfo?.display_name || selectedExerciseInfo?.name || 'Exercise Information'}</DialogTitle>
+            <DialogDescription>
+              View exercise demonstration and details
+            </DialogDescription>
+          </DialogHeader>
+          
+          {loadingExerciseInfo ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="h-6 w-6 animate-spin text-primary" />
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {/* Video */}
+              {selectedExerciseInfo?.video_url && (
+                <div className="space-y-2">
+                  <Label className="text-sm font-semibold">Exercise Video</Label>
+                  <div className="relative w-full" style={{ paddingBottom: '56.25%' }}>
+                    <iframe
+                      src={convertToEmbedUrl(selectedExerciseInfo.video_url)}
+                      className="absolute top-0 left-0 w-full h-full rounded-lg"
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                      allowFullScreen
+                      title={`${selectedExerciseInfo.display_name || selectedExerciseInfo.name} demonstration`}
+                    />
+                  </div>
+                </div>
+              )}
+              
+              {/* Image fallback if no video */}
+              {!selectedExerciseInfo?.video_url && selectedExerciseInfo?.image_url && (
+                <div className="space-y-2">
+                  <Label className="text-sm font-semibold">Exercise Image</Label>
+                  <img
+                    src={selectedExerciseInfo.image_url}
+                    alt={selectedExerciseInfo.display_name || selectedExerciseInfo.name}
+                    className="w-full rounded-lg"
+                  />
+                </div>
+              )}
+              
+              {/* Description/Info */}
+              <div className="space-y-2">
+                <Label className="text-sm font-semibold">Exercise Description</Label>
+                <Card className="p-4 bg-card/50">
+                  {selectedExerciseInfo?.description ? (
+                    <p className="text-sm text-foreground leading-relaxed whitespace-pre-wrap">
+                      {selectedExerciseInfo.description}
+                    </p>
+                  ) : selectedExerciseInfo?.video_url ? (
+                    <p className="text-sm text-foreground leading-relaxed">
+                      Watch to learn how to perform this exercise.
+                    </p>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">
+                      No video or description available for this exercise.
+                    </p>
+                  )}
+                </Card>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Personal Best Dialog */}
+      <Dialog open={pbDialogOpen} onOpenChange={setPbDialogOpen}>
+        <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Trophy className="h-5 w-5 text-primary" />
+              {selectedExerciseName} - Personal Bests
+            </DialogTitle>
+            <DialogDescription>
+              View your personal best performance for this exercise
+            </DialogDescription>
+          </DialogHeader>
+
+          {loadingPB ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="h-6 w-6 animate-spin text-primary" />
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {/* PB History */}
+              {pbHistory.length > 0 && (
+                <div className="space-y-2">
+                  <h3 className="text-sm font-semibold text-foreground">PB History</h3>
+                  <div className="space-y-2 max-h-60 overflow-y-auto">
+                    {pbHistory.map((entry, idx) => (
+                      <div
+                        key={idx}
+                        className="rounded-lg bg-card border border-border p-3 text-sm"
+                      >
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="font-medium text-foreground">
+                            {formatPBValue(entry as any)}
+                          </span>
+                          {entry.workout_date && (
+                            <span className="text-xs text-muted-foreground">
+                              {format(parseISO(entry.workout_date), "MMM d, yyyy")}
+                            </span>
+                          )}
+                        </div>
+                        {entry.completed_at && (
+                          <p className="text-xs text-muted-foreground">
+                            Completed: {format(parseISO(entry.completed_at), "MMM d, yyyy 'at' h:mm a")}
+                          </p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   )
+}
+
+// Helper function to format PB values
+function formatPBValue(entry: any): string {
+  const parts: string[] = []
+  
+  // Check if it's cardio (has cardio fields)
+  if (entry.duration_minutes || entry.distance_km || entry.intensity) {
+    // Cardio PB
+    if (entry.duration_minutes) parts.push(`${entry.duration_minutes} min`)
+    if (entry.distance_km) parts.push(`${entry.distance_km} km`)
+    if (entry.intensity) parts.push(entry.intensity)
+  } else {
+    // Sets-based PB
+    if (entry.reps) {
+      parts.push(`${entry.reps} ${entry.reps === "1" ? "rep" : "reps"}`)
+    }
+    if (entry.weight) {
+      // If weight doesn't already have units, assume kg
+      const weightValue = entry.weight.trim()
+      const hasUnits = /(kg|lbs|lb|kg\.|pounds?)/i.test(weightValue)
+      parts.push(hasUnits ? weightValue : `${weightValue}kg`)
+    }
+    if (entry.seconds) {
+      const secondsNum = parseInt(entry.seconds)
+      if (secondsNum === 1) {
+        parts.push("1 second")
+      } else if (secondsNum < 60) {
+        parts.push(`${secondsNum} seconds`)
+      } else {
+        const minutes = Math.floor(secondsNum / 60)
+        const remainingSeconds = secondsNum % 60
+        if (remainingSeconds === 0) {
+          parts.push(`${minutes} ${minutes === 1 ? "minute" : "minutes"}`)
+        } else {
+          parts.push(`${minutes}m ${remainingSeconds}s`)
+        }
+      }
+    }
+  }
+  
+  if (parts.length === 0) {
+    return "No PB recorded"
+  }
+  
+  // Format more naturally: "10 reps at 30kg" or "30 seconds" or "30 min • 5.0 km"
+  if (parts.length === 1) {
+    return parts[0]
+  } else if (parts.length === 2 && !(entry.duration_minutes || entry.distance_km)) {
+    return `${parts[0]} at ${parts[1]}`
+  } else {
+    return parts.join(" • ")
+  }
 }
 

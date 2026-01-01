@@ -1,57 +1,125 @@
 "use client"
 
+import { useState } from "react"
+import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import { Progress } from "@/components/ui/progress"
-import { CheckCircle2, ArrowLeft, Smile, Meh, Frown, TrendingUp, Calendar } from "lucide-react"
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { CheckCircle2, ArrowLeft, Smile, Meh, Frown, TrendingUp, Calendar, Trophy, Loader2 } from "lucide-react"
 import { format, parseISO } from "date-fns"
+import { toast } from "sonner"
+import { extractAndNormalizeExerciseName } from "@/lib/exercise-utils"
 import type { WorkoutDetail, ExerciseCompletion } from "./workout-detail-view"
 
 interface WorkoutSummaryViewProps {
   workout: WorkoutDetail
   onBack: () => void
+  customerId?: string // Optional customer ID for admin context
 }
 
 // Helper function to parse exercise string into structured format
 function parseExercise(exerciseStr: string): {
   name: string
+  exercise_type: "cardio" | "sets"
   sets: string
   reps: string
   type: "reps" | "seconds"
   weight?: string
+  duration_minutes?: string
+  distance_km?: string
+  intensity?: string
   notes?: string
 } {
   if (!exerciseStr || !exerciseStr.trim()) {
-    return { name: "", sets: "", reps: "", type: "reps", weight: "", notes: "" }
+    return { name: "", exercise_type: "sets", sets: "", reps: "", type: "reps", weight: "", notes: "" }
   }
 
-  const parts = exerciseStr.split(" - ")
-  const notes = parts.length > 1 ? parts[1].trim() : ""
-  let mainPart = parts[0].trim()
+  // Check if this is a cardio exercise format (contains "Duration:", "Distance:", or "Intensity:")
+  const isCardioFormat = exerciseStr.includes("Duration:") || exerciseStr.includes("Distance:") || exerciseStr.includes("Intensity:")
   
-  const weightMatch = mainPart.match(/@\s*([^-]+?)(?:\s*-\s*|$)/)
-  let weight = ""
-  if (weightMatch) {
-    weight = weightMatch[1].trim()
-    mainPart = mainPart.replace(/@\s*[^-]+?(\s*-\s*|$)/, "").trim()
+  if (isCardioFormat) {
+    // Cardio format: "Exercise Name - Duration: 30min, Distance: 5.0km, Intensity: Moderate - Notes"
+    const parts = exerciseStr.split(" - ")
+    let notes = ""
+    let mainPart = parts[0].trim()
+    let cardioData = ""
+    
+    // Check if last part looks like notes (doesn't contain cardio keywords)
+    if (parts.length > 1) {
+      const lastPart = parts[parts.length - 1]
+      if (!lastPart.includes("Duration:") && !lastPart.includes("Distance:") && !lastPart.includes("Intensity:")) {
+        notes = lastPart.trim()
+        // Everything between first and last is cardio data
+        cardioData = parts.slice(1, -1).join(" - ").trim()
+      } else {
+        // No notes, all middle parts are cardio data
+        cardioData = parts.slice(1).join(" - ").trim()
+      }
+    }
+    
+    // Extract cardio values
+    let duration_minutes = ""
+    let distance_km = ""
+    let intensity = ""
+    
+    const durationMatch = cardioData.match(/Duration:\s*(\d+)\s*min/i)
+    if (durationMatch) {
+      duration_minutes = durationMatch[1]
+    }
+    
+    const distanceMatch = cardioData.match(/Distance:\s*([\d.]+)\s*km/i)
+    if (distanceMatch) {
+      distance_km = distanceMatch[1]
+    }
+    
+    const intensityMatch = cardioData.match(/Intensity:\s*([^,]+)/i)
+    if (intensityMatch) {
+      intensity = intensityMatch[1].trim()
+    }
+    
+    return { 
+      name: mainPart, 
+      exercise_type: "cardio", 
+      sets: "", 
+      reps: "", 
+      type: "reps", 
+      weight: "", 
+      duration_minutes,
+      distance_km,
+      intensity,
+      notes 
+    }
+  } else {
+    // Sets-based format: "Exercise Name 3x8 @ 50kg - Notes"
+    const parts = exerciseStr.split(" - ")
+    const notes = parts.length > 1 ? parts[parts.length - 1].trim() : ""
+    let mainPart = parts[0].trim()
+    
+    const weightMatch = mainPart.match(/@\s*([^-]+?)(?:\s*-\s*|$)/)
+    let weight = ""
+    if (weightMatch) {
+      weight = weightMatch[1].trim()
+      mainPart = mainPart.replace(/@\s*[^-]+?(\s*-\s*|$)/, "").trim()
+    }
+    
+    const setsRepsMatch = mainPart.match(/(\d+)x([\d-]+)(s)?/)
+    let sets = ""
+    let reps = ""
+    let type: "reps" | "seconds" = "reps"
+    if (setsRepsMatch) {
+      sets = setsRepsMatch[1]
+      reps = setsRepsMatch[2]
+      type = setsRepsMatch[3] === "s" ? "seconds" : "reps"
+      mainPart = mainPart.replace(/\d+x[\d-]+s?/, "").trim()
+    }
+    
+    const name = mainPart.trim()
+    
+    return { name, exercise_type: "sets", sets, reps, type, weight, notes }
   }
-  
-  const setsRepsMatch = mainPart.match(/(\d+)x([\d-]+)(s)?/)
-  let sets = ""
-  let reps = ""
-  let type: "reps" | "seconds" = "reps"
-  if (setsRepsMatch) {
-    sets = setsRepsMatch[1]
-    reps = setsRepsMatch[2]
-    type = setsRepsMatch[3] === "s" ? "seconds" : "reps"
-    mainPart = mainPart.replace(/\d+x[\d-]+s?/, "").trim()
-  }
-  
-  const name = mainPart.trim()
-  
-  return { name, sets, reps, type, weight, notes }
 }
 
 const getRatingIcon = (rating: "easy" | "good" | "hard" | "too_hard") => {
@@ -93,7 +161,94 @@ const getRatingColor = (rating: "easy" | "good" | "hard" | "too_hard") => {
   }
 }
 
-export function WorkoutSummaryView({ workout, onBack }: WorkoutSummaryViewProps) {
+interface ExercisePB {
+  id: string
+  customer_id: string
+  exercise_name: string
+  reps?: string
+  weight?: string
+  seconds?: string
+  duration_minutes?: string
+  distance_km?: string
+  intensity?: string
+  workout_id?: string
+  workout_date?: string
+  created_at: string
+  updated_at: string
+}
+
+interface PBHistoryEntry {
+  workout_id: string
+  workout_date: string
+  reps?: string
+  weight?: string
+  seconds?: string
+  duration_minutes?: string
+  distance_km?: string
+  intensity?: string
+  completed_at?: string
+}
+
+const formatPBValue = (entry: ExercisePB | PBHistoryEntry): string => {
+  const parts: string[] = []
+  
+  // Check if it's cardio (has cardio fields)
+  if ('duration_minutes' in entry || 'distance_km' in entry || 'intensity' in entry) {
+    // Cardio PB
+    if (entry.duration_minutes) parts.push(`${entry.duration_minutes} min`)
+    if (entry.distance_km) parts.push(`${entry.distance_km} km`)
+    if (entry.intensity) parts.push(entry.intensity)
+  } else {
+    // Sets-based PB
+    if (entry.reps) {
+      parts.push(`${entry.reps} ${entry.reps === "1" ? "rep" : "reps"}`)
+    }
+    if (entry.weight) {
+      // If weight doesn't already have units, assume kg
+      const weightValue = entry.weight.trim()
+      const hasUnits = /(kg|lbs|lb|kg\.|pounds?)/i.test(weightValue)
+      parts.push(hasUnits ? weightValue : `${weightValue}kg`)
+    }
+    if (entry.seconds) {
+      const secondsNum = parseInt(entry.seconds)
+      if (secondsNum === 1) {
+        parts.push("1 second")
+      } else if (secondsNum < 60) {
+        parts.push(`${secondsNum} seconds`)
+      } else {
+        const minutes = Math.floor(secondsNum / 60)
+        const remainingSeconds = secondsNum % 60
+        if (remainingSeconds === 0) {
+          parts.push(`${minutes} ${minutes === 1 ? "minute" : "minutes"}`)
+        } else {
+          parts.push(`${minutes}m ${remainingSeconds}s`)
+        }
+      }
+    }
+  }
+  
+  if (parts.length === 0) {
+    return "No PB recorded"
+  }
+  
+  // Format more naturally: "10 reps at 30kg" or "30 seconds" or "30 min • 5.0 km"
+  if (parts.length === 1) {
+    return parts[0]
+  } else if (parts.length === 2 && !('duration_minutes' in entry || 'distance_km' in entry)) {
+    return `${parts[0]} at ${parts[1]}`
+  } else {
+    return parts.join(" • ")
+  }
+}
+
+export function WorkoutSummaryView({ workout, onBack, customerId }: WorkoutSummaryViewProps) {
+  const router = useRouter()
+  const [pbDialogOpen, setPbDialogOpen] = useState(false)
+  const [selectedExerciseName, setSelectedExerciseName] = useState<string>("")
+  const [loading, setLoading] = useState(false)
+  const [pb, setPb] = useState<ExercisePB | null>(null)
+  const [pbHistory, setPbHistory] = useState<PBHistoryEntry[]>([])
+
   const parsedExercises = workout.exercises && workout.exercises.length > 0
     ? workout.exercises.map(parseExercise).filter((ex) => ex.name.trim())
     : []
@@ -118,8 +273,61 @@ export function WorkoutSummaryView({ workout, onBack }: WorkoutSummaryViewProps)
     return exerciseCompletions.find(ec => ec.exerciseIndex === index && ec.completed)
   }
 
+  const fetchExercisePB = async (exerciseName: string) => {
+    if (!exerciseName.trim()) {
+      toast.error("Exercise name is required")
+      return
+    }
+
+    try {
+      setLoading(true)
+      setSelectedExerciseName(exerciseName)
+      setPbDialogOpen(true)
+      
+      const normalizedName = extractAndNormalizeExerciseName(exerciseName)
+      const encodedName = encodeURIComponent(normalizedName)
+      
+      // Use admin API if customerId is provided (admin context), otherwise use customer API
+      const apiUrl = customerId 
+        ? `/api/admin/customers/${customerId}/exercises/${encodedName}`
+        : `/api/customer/exercises/${encodedName}`
+      
+      const response = await fetch(apiUrl, {
+        credentials: 'include', // Include cookies for authentication
+      })
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        
+        // Handle unauthorized gracefully - user might not be logged in or session expired
+        if (response.status === 401) {
+          toast.error("Please log in to view personal bests")
+          setPb(null)
+          setPbHistory([])
+          return
+        }
+        
+        throw new Error(errorData.error || `Failed to fetch exercise PB: ${response.status} ${response.statusText}`)
+      }
+
+      const data = await response.json()
+      setPb(data.pb || null)
+      setPbHistory(data.history || [])
+    } catch (error: any) {
+      console.error("Error fetching exercise PB:", error)
+      // Only show error toast if it's not already handled (like 401)
+      if (error.message && !error.message.includes("Please log in")) {
+        toast.error(error.message || "Failed to load exercise personal bests")
+      }
+      setPb(null)
+      setPbHistory([])
+    } finally {
+      setLoading(false)
+    }
+  }
+
   return (
-    <div className="mx-auto max-w-4xl p-6 space-y-6 pb-20">
+    <div className="mx-auto max-w-4xl p-4 sm:p-6 space-y-4 sm:space-y-6" style={{ paddingBottom: 'calc(5rem + env(safe-area-inset-bottom, 0px))' }}>
       {/* Header */}
       <div className="flex items-center gap-4">
         <Button
@@ -138,12 +346,12 @@ export function WorkoutSummaryView({ workout, onBack }: WorkoutSummaryViewProps)
             {workout.completed && (
               <Badge className="bg-green-500/20 text-green-500 border-green-500/30 px-3 py-1">
                 <CheckCircle2 className="h-3.5 w-3.5 mr-1.5" />
-                {t("workouts.completed")}
+                Completed
               </Badge>
             )}
           </div>
           <p className="mt-2 text-sm text-muted-foreground">
-            {workout.title} • {format(workoutDate, "EEEE, MMMM d, yyyy")}
+            {format(workoutDate, "EEEE, MMMM d, yyyy")}
           </p>
         </div>
       </div>
@@ -207,7 +415,7 @@ export function WorkoutSummaryView({ workout, onBack }: WorkoutSummaryViewProps)
 
             {workout.completed_at && (
               <div className="space-y-2">
-                <p className="text-sm text-muted-foreground">{t("workouts.completedOn")}</p>
+                <p className="text-sm text-muted-foreground">Completed On</p>
                 <div className="flex items-center gap-2">
                   <Calendar className="h-4 w-4 text-muted-foreground" />
                   <span className="text-sm font-medium">
@@ -219,15 +427,6 @@ export function WorkoutSummaryView({ workout, onBack }: WorkoutSummaryViewProps)
           </div>
         </div>
       </Card>
-
-      {/* Description */}
-      {workout.description && (
-        <Card className="p-5 bg-card/50">
-          <p className="text-sm text-muted-foreground leading-relaxed">
-            {workout.description}
-          </p>
-        </Card>
-      )}
 
       {/* Exercises */}
       <div className="space-y-4">
@@ -283,7 +482,7 @@ export function WorkoutSummaryView({ workout, onBack }: WorkoutSummaryViewProps)
                             )}
                             {!isCompleted && (
                               <Badge variant="outline" className="text-xs">
-                                {t("workouts.notCompleted")}
+                                Not Completed
                               </Badge>
                             )}
                           </div>
@@ -294,34 +493,66 @@ export function WorkoutSummaryView({ workout, onBack }: WorkoutSummaryViewProps)
                           )}
                           {completion?.completed_at && (
                             <p className="text-xs text-muted-foreground mt-1">
-                              {t("workouts.completed")}: {format(parseISO(completion.completed_at), "MMM d, yyyy 'at' h:mm a")}
+                              Completed: {format(parseISO(completion.completed_at), "MMM d, yyyy 'at' h:mm a")}
                             </p>
                           )}
                         </div>
                       </div>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => fetchExercisePB(exercise.name)}
+                        className="h-8 w-8 text-primary hover:text-primary hover:bg-primary/10"
+                        title="View Personal Best"
+                      >
+                        <Trophy className="h-4 w-4" />
+                      </Button>
                     </div>
 
                     <Separator />
 
                     {/* Exercise Details */}
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                      <div className="space-y-1">
-                        <p className="text-xs text-muted-foreground uppercase tracking-wide">Sets</p>
-                        <p className="text-lg font-semibold text-foreground">{exercise.sets || "-"}</p>
+                    {exercise.exercise_type === "cardio" ? (
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                        {exercise.duration_minutes && (
+                          <div className="space-y-1">
+                            <p className="text-xs text-muted-foreground uppercase tracking-wide">Duration</p>
+                            <p className="text-lg font-semibold text-foreground">{exercise.duration_minutes} min</p>
+                          </div>
+                        )}
+                        {exercise.distance_km && (
+                          <div className="space-y-1">
+                            <p className="text-xs text-muted-foreground uppercase tracking-wide">Distance</p>
+                            <p className="text-lg font-semibold text-foreground">{exercise.distance_km} km</p>
+                          </div>
+                        )}
+                        {exercise.intensity && (
+                          <div className="space-y-1">
+                            <p className="text-xs text-muted-foreground uppercase tracking-wide">Intensity</p>
+                            <p className="text-lg font-semibold text-foreground">{exercise.intensity}</p>
+                          </div>
+                        )}
                       </div>
-                      <div className="space-y-1">
-                        <p className="text-xs text-muted-foreground uppercase tracking-wide">
-                          {exercise.type === "seconds" ? "Seconds" : "Reps"}
-                        </p>
-                        <p className="text-lg font-semibold text-foreground">{exercise.reps || "-"}</p>
-                      </div>
-                      {exercise.weight && (
+                    ) : (
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                         <div className="space-y-1">
-                          <p className="text-xs text-muted-foreground uppercase tracking-wide">Weight</p>
-                          <p className="text-lg font-semibold text-foreground">{exercise.weight}</p>
+                          <p className="text-xs text-muted-foreground uppercase tracking-wide">Sets</p>
+                          <p className="text-lg font-semibold text-foreground">{exercise.sets || "-"}</p>
                         </div>
-                      )}
-                    </div>
+                        <div className="space-y-1">
+                          <p className="text-xs text-muted-foreground uppercase tracking-wide">
+                            {exercise.type === "seconds" ? "Seconds" : "Reps"}
+                          </p>
+                          <p className="text-lg font-semibold text-foreground">{exercise.reps || "-"}</p>
+                        </div>
+                        {exercise.weight && (
+                          <div className="space-y-1">
+                            <p className="text-xs text-muted-foreground uppercase tracking-wide">Weight</p>
+                            <p className="text-lg font-semibold text-foreground">{exercise.weight}</p>
+                          </div>
+                        )}
+                      </div>
+                    )}
 
                     {/* Best Set Performance */}
                     {completion?.bestSet && (
@@ -348,6 +579,24 @@ export function WorkoutSummaryView({ workout, onBack }: WorkoutSummaryViewProps)
                                 <p className="text-base font-semibold text-foreground">{completion.bestSet.weight}</p>
                               </div>
                             )}
+                            {completion.bestSet.duration_minutes && (
+                              <div className="space-y-1">
+                                <p className="text-xs text-muted-foreground uppercase tracking-wide">Duration</p>
+                                <p className="text-base font-semibold text-foreground">{completion.bestSet.duration_minutes} min</p>
+                              </div>
+                            )}
+                            {completion.bestSet.distance_km && (
+                              <div className="space-y-1">
+                                <p className="text-xs text-muted-foreground uppercase tracking-wide">Distance</p>
+                                <p className="text-base font-semibold text-foreground">{completion.bestSet.distance_km} km</p>
+                              </div>
+                            )}
+                            {completion.bestSet.intensity && (
+                              <div className="space-y-1">
+                                <p className="text-xs text-muted-foreground uppercase tracking-wide">Intensity</p>
+                                <p className="text-base font-semibold text-foreground">{completion.bestSet.intensity}</p>
+                              </div>
+                            )}
                           </div>
                         </div>
                       </>
@@ -359,6 +608,60 @@ export function WorkoutSummaryView({ workout, onBack }: WorkoutSummaryViewProps)
           </div>
         )}
       </div>
+
+      {/* Personal Best Dialog */}
+      <Dialog open={pbDialogOpen} onOpenChange={setPbDialogOpen}>
+        <DialogContent className="max-w-lg max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Trophy className="h-5 w-5 text-primary" />
+              {selectedExerciseName} - Personal Bests
+            </DialogTitle>
+            <DialogDescription>
+              View your personal best performance for this exercise
+            </DialogDescription>
+          </DialogHeader>
+
+          {loading ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="h-6 w-6 animate-spin text-primary" />
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {/* PB History */}
+              {pbHistory.length > 0 && (
+                <div className="space-y-2">
+                  <h3 className="text-sm font-semibold text-foreground">PB History</h3>
+                  <div className="space-y-2 max-h-60 overflow-y-auto">
+                    {pbHistory.map((entry, idx) => (
+                      <div
+                        key={idx}
+                        className="rounded-lg bg-card border border-border p-3 text-sm"
+                      >
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="font-medium text-foreground">
+                            {formatPBValue(entry as any)}
+                          </span>
+                          {entry.workout_date && (
+                            <span className="text-xs text-muted-foreground">
+                              {format(parseISO(entry.workout_date), "MMM d, yyyy")}
+                            </span>
+                          )}
+                        </div>
+                        {entry.completed_at && (
+                          <p className="text-xs text-muted-foreground">
+                            Completed: {format(parseISO(entry.completed_at), "MMM d, yyyy 'at' h:mm a")}
+                          </p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

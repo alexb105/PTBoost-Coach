@@ -18,6 +18,7 @@ interface BrandingSettings {
   logo_url: string | null
   secondary_color: string
   admin_profile_picture_url: string | null
+  admin_name: string | null
 }
 
 export default function BrandingPage() {
@@ -31,6 +32,7 @@ export default function BrandingPage() {
     logo_url: null,
     secondary_color: "#3b82f6",
     admin_profile_picture_url: null,
+    admin_name: null,
   })
   const [logoFile, setLogoFile] = useState<File | null>(null)
   const [logoPreview, setLogoPreview] = useState<string | null>(null)
@@ -185,6 +187,7 @@ export default function BrandingPage() {
           logo_url: logoUrl,
           secondary_color: settings.secondary_color,
           admin_profile_picture_url: profilePictureUrl,
+          admin_name: settings.admin_name,
         }),
       })
 
@@ -328,6 +331,21 @@ export default function BrandingPage() {
                     </p>
                   </div>
                 </div>
+              </div>
+
+              {/* Admin Name */}
+              <div className="space-y-2">
+                <Label htmlFor="admin_name">Your Name</Label>
+                <Input
+                  id="admin_name"
+                  type="text"
+                  placeholder="Coach Jordan"
+                  value={settings.admin_name || ""}
+                  onChange={(e) => setSettings({ ...settings, admin_name: e.target.value })}
+                />
+                <p className="text-xs text-muted-foreground">
+                  This name appears in the chat header for clients. If left empty, defaults to "Coach".
+                </p>
               </div>
 
               {/* Admin Profile Picture Upload */}
