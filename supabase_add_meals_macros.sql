@@ -1,0 +1,8 @@
+-- Add protein, carbs, and fats columns to meals table
+ALTER TABLE meals
+ADD COLUMN IF NOT EXISTS protein INTEGER DEFAULT 0,
+ADD COLUMN IF NOT EXISTS carbs INTEGER DEFAULT 0,
+ADD COLUMN IF NOT EXISTS fats INTEGER DEFAULT 0;
+
+
+
