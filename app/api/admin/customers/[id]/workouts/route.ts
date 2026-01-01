@@ -77,7 +77,7 @@ export async function POST(
     }
 
     const { id } = await params
-    const { title, description, date, exercises } = await request.json()
+    const { title, description, date, exercises, is_rest_day } = await request.json()
 
     if (!title || !date) {
       return NextResponse.json(
@@ -95,6 +95,7 @@ export async function POST(
         description: description || null,
         date,
         exercises: exercises || [],
+        is_rest_day: is_rest_day || false,
       })
       .select()
       .single()

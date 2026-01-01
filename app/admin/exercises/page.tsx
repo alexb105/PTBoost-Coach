@@ -258,14 +258,14 @@ export default function ExercisesPage() {
           <Dialog open={isDialogOpen} onOpenChange={(open) => {
             if (open) {
               setEditingExercise(null)
-              setExerciseForm({
-                name: "",
-                exercise_type: "sets",
+    setExerciseForm({
+      name: "",
+      exercise_type: "sets",
                 image_url: "",
                 video_url: "",
                 description: "",
-              })
-            }
+    })
+  }
             setIsDialogOpen(open)
           }}>
             <DialogTrigger asChild>

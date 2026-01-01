@@ -49,7 +49,7 @@ export function ChatInterface() {
   const [sending, setSending] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const messagesContainerRef = useRef<HTMLDivElement>(null)
-  const { updateLastSeen, fetchUnreadCount } = useMessageNotifications({ isViewingChat: true })
+  const { markAsSeen, checkForUpdates } = useMessageNotifications()
   const [translatedMessages, setTranslatedMessages] = useState<Record<string, string>>({})
   const [translatedReplies, setTranslatedReplies] = useState<Record<string, string>>({})
   const [isUserAtBottom, setIsUserAtBottom] = useState(true)
@@ -290,9 +290,9 @@ export function ChatInterface() {
         // Update last seen timestamp to the most recent message
         if (fetchedMessages.length > 0) {
           const lastMessage = fetchedMessages[fetchedMessages.length - 1]
-          updateLastSeen(lastMessage.created_at)
+          markAsSeen()
           // Immediately refresh unread count to clear badge
-          setTimeout(() => fetchUnreadCount(), 100)
+          setTimeout(() => checkForUpdates(), 100)
         }
       } else if (response.status === 401) {
         // Unauthorized - user not logged in
@@ -321,8 +321,8 @@ export function ChatInterface() {
     }
 
     // Immediately clear badge on mount
-    updateLastSeen(new Date().toISOString())
-    fetchUnreadCount()
+    markAsSeen()
+    checkForUpdates()
     
     fetchMessagesSafe()
     fetchAdminProfilePicture()
@@ -435,15 +435,15 @@ export function ChatInterface() {
   useEffect(() => {
     if (messages.length > 0 && !loading) {
       const lastMessage = messages[messages.length - 1]
-      updateLastSeen(lastMessage.created_at)
+      markAsSeen()
       // Immediately refresh unread count to clear badge
-      fetchUnreadCount()
+      checkForUpdates()
     } else if (messages.length === 0 && !loading) {
       // No messages, use current timestamp to clear badge
-      updateLastSeen(new Date().toISOString())
-      fetchUnreadCount()
+      markAsSeen()
+      checkForUpdates()
     }
-  }, [messages.length, loading, updateLastSeen, fetchUnreadCount]) // Run when messages are loaded
+  }, [messages.length, loading, markAsSeen, checkForUpdates]) // Run when messages are loaded
 
   // Check if user is at bottom of scroll container
   const checkIfAtBottom = () => {
@@ -558,11 +558,11 @@ export function ChatInterface() {
     // Mark messages as seen when viewing chat
     if (messages.length > 0) {
       const lastMessage = messages[messages.length - 1]
-      updateLastSeen(lastMessage.created_at)
+      markAsSeen()
       // Immediately refresh unread count to clear badge
-      setTimeout(() => fetchUnreadCount(), 100)
+      setTimeout(() => checkForUpdates(), 100)
     }
-  }, [messages, updateLastSeen, fetchUnreadCount, loadingMore])
+  }, [messages, markAsSeen, checkForUpdates, loadingMore])
 
   // Auto-scroll to bottom on initial load only
   useEffect(() => {
@@ -724,7 +724,7 @@ export function ChatInterface() {
         translateMessage(sentMessage.id, sentMessage.content)
         
         // Update last seen and scroll to bottom
-        updateLastSeen(sentMessage.created_at)
+        markAsSeen()
         setTimeout(() => {
           messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
         }, 100)

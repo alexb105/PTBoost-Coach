@@ -2,121 +2,44 @@
 
 import { useState, useEffect, useCallback } from 'react'
 
-const LAST_SEEN_KEY = 'last_seen_message_timestamp'
-const NOTIFICATION_PERMISSION_KEY = 'notification_permission_requested'
+const LAST_SEEN_KEY = 'chat_last_seen'
 
 interface UseMessageNotificationsOptions {
-  customerId?: string // For admin, pass the customer ID
+  customerId?: string
   isAdmin?: boolean
   enabled?: boolean
-  isViewingChat?: boolean // Set to true when user is actively viewing the chat
 }
 
 export function useMessageNotifications({
   customerId,
   isAdmin = false,
   enabled = true,
-  isViewingChat = false,
 }: UseMessageNotificationsOptions = {}) {
-  const [unreadCount, setUnreadCount] = useState(0)
-  const [notificationPermission, setNotificationPermission] = useState<NotificationPermission>('default')
+  const [hasUnread, setHasUnread] = useState(false)
 
-  // Get last seen timestamp from localStorage
-  const getLastSeen = useCallback((): string | null => {
-    if (typeof window === 'undefined') return null
-    
-    const key = isAdmin && customerId 
+  // Get storage key based on context
+  const getStorageKey = useCallback(() => {
+    return isAdmin && customerId 
       ? `${LAST_SEEN_KEY}_admin_${customerId}`
       : LAST_SEEN_KEY
-    
-    return localStorage.getItem(key)
   }, [isAdmin, customerId])
 
-  // Update last seen timestamp
-  const updateLastSeen = useCallback((timestamp: string) => {
+  // Mark chat as seen (clears the red dot)
+  const markAsSeen = useCallback(() => {
     if (typeof window === 'undefined') return
-    
-    const key = isAdmin && customerId 
-      ? `${LAST_SEEN_KEY}_admin_${customerId}`
-      : LAST_SEEN_KEY
-    
-    localStorage.setItem(key, timestamp)
-  }, [isAdmin, customerId])
+    localStorage.setItem(getStorageKey(), new Date().toISOString())
+    setHasUnread(false)
+  }, [getStorageKey])
 
-  // Request browser notification permission
-  const requestNotificationPermission = useCallback(async () => {
-    if (typeof window === 'undefined' || !('Notification' in window)) {
-      return false
-    }
-
-    if (Notification.permission === 'granted') {
-      setNotificationPermission('granted')
-      return true
-    }
-
-    if (Notification.permission === 'denied') {
-      setNotificationPermission('denied')
-      return false
-    }
-
-    // Check if we've already asked
-    const hasAsked = localStorage.getItem(NOTIFICATION_PERMISSION_KEY)
-    if (hasAsked && Notification.permission === 'default') {
-      setNotificationPermission('default')
-      return false
-    }
-
-    try {
-      const permission = await Notification.requestPermission()
-      setNotificationPermission(permission)
-      localStorage.setItem(NOTIFICATION_PERMISSION_KEY, 'true')
-      return permission === 'granted'
-    } catch (error) {
-      console.error('Error requesting notification permission:', error)
-      return false
-    }
-  }, [])
-
-  // Show browser notification
-  const showNotification = useCallback((title: string, body: string, icon?: string) => {
-    if (typeof window === 'undefined' || !('Notification' in window)) {
-      return
-    }
-
-    if (Notification.permission !== 'granted') {
-      return
-    }
-
-    try {
-      const notification = new Notification(title, {
-        body,
-        icon: icon || '/icon.svg',
-        badge: '/icon.svg',
-        tag: 'message-notification',
-        requireInteraction: false,
-      })
-
-      // Auto-close after 5 seconds
-      setTimeout(() => {
-        notification.close()
-      }, 5000)
-
-      // Handle click
-      notification.onclick = () => {
-        window.focus()
-        notification.close()
-      }
-    } catch (error) {
-      console.error('Error showing notification:', error)
-    }
-  }, [])
-
-  // Fetch unread count
-  const fetchUnreadCount = useCallback(async () => {
+  // Check for unread messages
+  const checkForUpdates = useCallback(async () => {
     if (!enabled) return
 
     try {
-      const lastSeen = getLastSeen()
+      const lastSeen = typeof window !== 'undefined' 
+        ? localStorage.getItem(getStorageKey()) 
+        : null
+      
       const url = isAdmin && customerId
         ? `/api/admin/customers/${customerId}/messages/unread${lastSeen ? `?lastSeen=${encodeURIComponent(lastSeen)}` : ''}`
         : `/api/customer/messages/unread${lastSeen ? `?lastSeen=${encodeURIComponent(lastSeen)}` : ''}`
@@ -124,85 +47,31 @@ export function useMessageNotifications({
       const response = await fetch(url)
       if (response.ok) {
         const data = await response.json()
-        const newCount = data.unreadCount || 0
-        
-        setUnreadCount((prevCount) => {
-          // If count increased, show notification (but not if user is viewing chat)
-          if (newCount > prevCount && newCount > 0 && notificationPermission === 'granted' && !isViewingChat) {
-            const senderName = isAdmin ? 'Customer' : 'Trainer'
-            const diff = newCount - prevCount
-            
-            // Determine notification message based on what changed
-            if (diff === 1) {
-              showNotification(
-                'New Activity',
-                `You have new activity from ${senderName}`,
-              )
-            } else {
-              showNotification(
-                'New Activity',
-                `You have ${diff} new activities from ${senderName}`,
-              )
-            }
-          }
-          
-          return newCount
-        })
+        setHasUnread(data.hasUnread === true)
       }
     } catch (error) {
-      console.error('Error fetching unread count:', error)
+      console.error('Error checking for updates:', error)
     }
-  }, [enabled, isAdmin, customerId, getLastSeen, notificationPermission, showNotification, isViewingChat])
+  }, [enabled, isAdmin, customerId, getStorageKey])
 
-  // Initialize notification permission on mount
-  useEffect(() => {
-    if (typeof window !== 'undefined' && 'Notification' in window) {
-      setNotificationPermission(Notification.permission)
-      
-      // Request permission if not already asked
-      if (Notification.permission === 'default') {
-        // Request after a short delay to avoid blocking the UI
-        setTimeout(() => {
-          requestNotificationPermission()
-        }, 2000)
-      }
-    }
-  }, [requestNotificationPermission])
-
-  // Poll for unread messages
+  // Poll for updates
   useEffect(() => {
     if (!enabled) return
 
-    let isMounted = true
-
-    const fetchUnreadCountSafe = async () => {
-      if (isMounted && enabled) {
-        await fetchUnreadCount()
-      }
-    }
-
-    fetchUnreadCountSafe()
+    checkForUpdates()
 
     const interval = setInterval(() => {
-      // Only poll if page is visible and component is mounted
-      if (typeof document !== 'undefined' && !document.hidden && isMounted && enabled) {
-        fetchUnreadCountSafe()
+      if (typeof document !== 'undefined' && !document.hidden) {
+        checkForUpdates()
       }
-    }, 10000) // Increased to 10 seconds to reduce server load
+    }, 10000)
 
-    return () => {
-      isMounted = false
-      clearInterval(interval)
-    }
-  }, [enabled, fetchUnreadCount])
+    return () => clearInterval(interval)
+  }, [enabled, checkForUpdates])
 
   return {
-    unreadCount,
-    notificationPermission,
-    requestNotificationPermission,
-    showNotification,
-    updateLastSeen,
-    fetchUnreadCount,
+    hasUnread,
+    markAsSeen,
+    checkForUpdates,
   }
 }
-

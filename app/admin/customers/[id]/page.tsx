@@ -30,6 +30,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useMessageNotifications } from "@/hooks/use-message-notifications"
 import { useLanguage } from "@/contexts/language-context"
 import { LanguageSelector } from "@/components/language-selector"
+import { WeightTracker } from "@/components/weight-tracker"
 
 interface Customer {
   id: string
@@ -48,6 +49,7 @@ interface Workout {
   exercises?: string[]
   completed?: boolean
   completed_at?: string
+  is_rest_day?: boolean
   exercise_completions?: Array<{
     exerciseIndex: number
     completed: boolean
@@ -138,6 +140,13 @@ export default function CustomerDetailPage() {
     goal_type: "monthly" as "weekly" | "monthly",
     start_date: new Date().toISOString().split('T')[0],
     end_date: "",
+    notes: ""
+  })
+  const [isWeightEntryDialogOpen, setIsWeightEntryDialogOpen] = useState(false)
+  const [editingWeightEntry, setEditingWeightEntry] = useState<any | null>(null)
+  const [weightEntryForm, setWeightEntryForm] = useState({
+    weight: "",
+    date: new Date().toISOString().split('T')[0],
     notes: ""
   })
   const [templates, setTemplates] = useState<WorkoutTemplate[]>([])
@@ -248,11 +257,10 @@ export default function CustomerDetailPage() {
   const previousMessagesLengthRef = useRef<number>(0)
   
   // Message notifications
-  const { unreadCount: chatUnreadCount, updateLastSeen, fetchUnreadCount } = useMessageNotifications({
+  const { hasUnread: chatHasUnread, markAsSeen, checkForUpdates } = useMessageNotifications({
     customerId,
     isAdmin: true,
-    enabled: true, // Always enabled to show badge
-    isViewingChat: activeTab === "chat", // Only suppress notifications when viewing chat
+    enabled: true,
   })
 
   // Nutrition form state
@@ -462,9 +470,9 @@ export default function CustomerDetailPage() {
           // Update last seen timestamp to the most recent message
         if (fetchedMessages.length > 0) {
           const lastMessage = fetchedMessages[fetchedMessages.length - 1]
-            updateLastSeen(lastMessage.created_at)
+            markAsSeen()
             // Immediately refresh unread count to clear badge
-            setTimeout(() => fetchUnreadCount(), 100)
+            setTimeout(() => checkForUpdates(), 100)
           }
         }
       } catch (error) {
@@ -499,7 +507,7 @@ export default function CustomerDetailPage() {
       isMounted = false
       clearInterval(interval)
     }
-  }, [customerId, activeTab, updateLastSeen, fetchUnreadCount, language, translatedMessages])
+  }, [customerId, activeTab, markAsSeen, checkForUpdates, language, translatedMessages])
 
   // Re-translate messages when language changes
   useEffect(() => {
@@ -542,11 +550,11 @@ export default function CustomerDetailPage() {
   useEffect(() => {
     if (activeTab === "chat" && messages.length > 0) {
       const lastMessage = messages[messages.length - 1]
-      updateLastSeen(lastMessage.created_at)
+      markAsSeen()
       // Immediately refresh unread count to clear badge
-      fetchUnreadCount()
+      checkForUpdates()
     }
-  }, [activeTab, messages.length, updateLastSeen, fetchUnreadCount]) // Run when tab changes to chat or messages load
+  }, [activeTab, messages.length, markAsSeen, checkForUpdates]) // Run when tab changes to chat or messages load
 
   // Scroll to reply input when replying opens
   useEffect(() => {
@@ -674,12 +682,12 @@ export default function CustomerDetailPage() {
       // Mark messages as seen when viewing chat
       if (messages.length > 0) {
         const lastMessage = messages[messages.length - 1]
-        updateLastSeen(lastMessage.created_at)
+        markAsSeen()
         // Immediately refresh unread count to clear badge
-        setTimeout(() => fetchUnreadCount(), 100)
+        setTimeout(() => checkForUpdates(), 100)
       }
     }
-  }, [messages, activeTab, updateLastSeen, fetchUnreadCount, loadingMore])
+  }, [messages, activeTab, markAsSeen, checkForUpdates, loadingMore])
 
   // Auto-scroll to bottom when chat tab is first opened
   useEffect(() => {
@@ -1139,6 +1147,11 @@ export default function CustomerDetailPage() {
   }, [mealsDate, activeTab, customerId])
 
   const handleDayClick = (date: Date, workout?: Workout) => {
+    // Don't open dialog for rest days
+    if (workout?.is_rest_day) {
+      return
+    }
+    
     if (workout) {
       // If workout is completed, show summary view
       if (workout.completed) {
@@ -1173,6 +1186,50 @@ export default function CustomerDetailPage() {
         exercises: [{ name: "", sets: "", reps: "", type: "reps" as const, weight: "", notes: "" }],
       })
       setIsWorkoutDialogOpen(true)
+    }
+  }
+
+  const handleToggleRestDay = async (date: Date, isRestDay: boolean) => {
+    try {
+      const dateStr = format(date, "yyyy-MM-dd")
+      
+      if (isRestDay) {
+        // Remove rest day - delete the workout
+        const existingWorkout = workouts.find(w => w.date === dateStr && w.is_rest_day)
+        if (existingWorkout) {
+          const response = await fetch(`/api/admin/customers/${customerId}/workouts/${existingWorkout.id}`, {
+            method: 'DELETE',
+          })
+          if (!response.ok) {
+            throw new Error("Failed to remove rest day")
+          }
+          // Update local state immediately
+          setWorkouts(workouts.filter(w => w.id !== existingWorkout.id))
+          toast.success("Rest day removed")
+        }
+      } else {
+        // Create rest day - create a workout with is_rest_day = true
+        const response = await fetch(`/api/admin/customers/${customerId}/workouts`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            title: "Rest Day",
+            description: null,
+            date: dateStr,
+            exercises: [],
+            is_rest_day: true,
+          }),
+        })
+        if (!response.ok) {
+          throw new Error("Failed to mark as rest day")
+        }
+        const data = await response.json()
+        // Update local state immediately
+        setWorkouts([...workouts, data.workout])
+        toast.success("Day marked as rest day")
+      }
+    } catch (error: any) {
+      toast.error(error.message || "Failed to toggle rest day")
     }
   }
 
@@ -1588,8 +1645,8 @@ export default function CustomerDetailPage() {
             setActiveTab(value)
               // Clear badge when chat tab is clicked
             if (value === "chat") {
-              updateLastSeen(new Date().toISOString())
-              fetchUnreadCount()
+              markAsSeen()
+              checkForUpdates()
             }
             }} 
             className="w-full"
@@ -1602,10 +1659,8 @@ export default function CustomerDetailPage() {
             <TabsTrigger value="chat" className="gap-2 relative">
               <div className="relative">
                 <MessageCircle className="h-4 w-4" />
-                {chatUnreadCount > 0 && activeTab !== "chat" && (
-                  <span className="absolute -top-1.5 -right-1.5 flex h-4 w-4 items-center justify-center rounded-full bg-destructive text-[10px] font-bold text-destructive-foreground">
-                    {chatUnreadCount > 9 ? "9+" : chatUnreadCount}
-                  </span>
+                {chatHasUnread && activeTab !== "chat" && (
+                  <span className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-destructive" />
                 )}
               </div>
               Chat
@@ -1625,7 +1680,8 @@ export default function CustomerDetailPage() {
             <WeekView 
               workouts={workouts} 
               canEdit={true} 
-              onDayClick={(date, workout) => handleDayClick(date, workout)} 
+              onDayClick={(date, workout) => handleDayClick(date, workout)}
+              onToggleRestDay={handleToggleRestDay}
             />
 
             <Dialog open={isWorkoutDialogOpen} onOpenChange={setIsWorkoutDialogOpen}>
@@ -2662,138 +2718,50 @@ export default function CustomerDetailPage() {
             </Card>
 
             {/* Weight Tracking Section */}
-            <Card className="bg-card p-6">
-              <div className="mb-4 flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-                  <TrendingUp className="h-5 w-5 text-primary" />
-                </div>
-                <div>
-                  <h3 className="font-semibold text-foreground">Weight</h3>
-                  <p className="text-sm text-muted-foreground">Track your weight progress</p>
-                </div>
-              </div>
-
-              {/* Weight Progress Chart */}
-              {(() => {
-                // Prepare chart data - sort by date
-                const chartData = weightEntries
-                  .map(entry => ({
-                    date: format(new Date(entry.date), "MMM d"),
-                    fullDate: entry.date,
-                    weight: Number(entry.weight.toFixed(1)),
-                  }))
-                  .sort((a, b) => new Date(a.fullDate).getTime() - new Date(b.fullDate).getTime())
-
-                // Get all weight goals for reference lines (active and future goals)
-                const goalsForChart = weightGoals.filter(goal => {
-                  const today = new Date()
-                  const endDate = new Date(goal.end_date)
-                  // Show goals that haven't ended yet
-                  return today <= endDate
-                }).map(goal => {
-                  const today = new Date()
-                  const endDate = new Date(goal.end_date)
-                  const daysLeft = Math.ceil((endDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24))
-                  return {
-                    ...goal,
-                    daysLeft: daysLeft > 0 ? daysLeft : 0
-                  }
+            <WeightTracker
+              weightEntries={weightEntries}
+              weightGoals={weightGoals}
+              onAdd={() => {
+                setEditingWeightEntry(null)
+                setWeightEntryForm({
+                  weight: "",
+                  date: new Date().toISOString().split('T')[0],
+                  notes: ""
                 })
-
-                return chartData.length > 0 ? (
-                  <div className="mb-6">
-                    {/* Chart Legend */}
-                    {goalsForChart.length > 0 && (
-                      <div className="mb-3 flex items-center gap-4 text-sm">
-                        <div className="flex items-center gap-2">
-                          <div 
-                            className="h-3 w-8 border-t-2 border-dashed" 
-                            style={{ borderColor: "hsl(221.2 83.2% 53.3%)" }}
-                          ></div>
-                          <span className="text-muted-foreground">Target Weight Goal</span>
-                        </div>
-                      </div>
-                    )}
-                    <ChartContainer
-                      config={{
-                        weight: {
-                          label: "Weight",
-                          color: "hsl(142.1 76.2% 36.3%)",
-                        },
-                        target: {
-                          label: "Target",
-                          color: "hsl(221.2 83.2% 53.3%)",
-                        },
-                      }}
-                      className="h-[300px] w-full"
-                    >
-                      <LineChart data={chartData} margin={{ top: 30, right: 10, left: 0, bottom: 0 }}>
-                        <CartesianGrid strokeDasharray="3 3" className="stroke-border/50" />
-                        <XAxis 
-                          dataKey="date" 
-                          className="text-xs fill-muted-foreground"
-                        />
-                        <YAxis 
-                          className="text-xs fill-muted-foreground"
-                          label={{ value: "Weight (kg)", angle: -90, position: 'insideLeft' }}
-                          domain={['auto', 'auto']}
-                        />
-                        <ChartTooltip content={<ChartTooltipContent />} />
-                        <Line 
-                          type="monotone" 
-                          dataKey="weight" 
-                          name="weight"
-                          stroke="var(--color-weight)" 
-                          strokeWidth={3}
-                          dot={{ fill: "var(--color-weight)", r: 5, strokeWidth: 2, stroke: "#fff" }}
-                          activeDot={{ r: 7, strokeWidth: 2, stroke: "#fff" }}
-                          connectNulls={false}
-                        />
-                        {goalsForChart.map((goal) => {
-                          const daysText = goal.daysLeft === 0 
-                            ? "Today" 
-                            : goal.daysLeft === 1 
-                            ? "1 day left" 
-                            : `${goal.daysLeft} days left`
-                          return (
-                            <ReferenceLine 
-                              key={goal.id}
-                              y={goal.target_weight} 
-                              stroke="hsl(221.2 83.2% 53.3%)" 
-                              strokeWidth={2}
-                              strokeDasharray="5 5"
-                              label={{ 
-                                value: `Target: ${goal.target_weight.toFixed(1)} kg (${daysText})`, 
-                                position: "top",
-                                fill: "hsl(221.2 83.2% 53.3%)",
-                                fontSize: 12,
-                                fontWeight: 600,
-                                offset: 10
-                              }}
-                            />
-                          )
-                        })}
-                      </LineChart>
-                    </ChartContainer>
-                  </div>
-                ) : null
-              })()}
-
-              <div className="space-y-3">
-                {weightEntries.length === 0 ? (
-                  <p className="text-sm text-muted-foreground text-center py-4">No weight entries logged yet.</p>
-                ) : (
-                  weightEntries.map((entry) => (
-                    <div key={entry.id} className="flex items-center justify-between rounded-lg bg-background p-3">
-                        <span className="text-sm text-muted-foreground">
-                          {format(new Date(entry.date), "MMM d, yyyy")}
-                        </span>
-                      <span className="font-semibold text-foreground">{entry.weight} kg</span>
-                    </div>
-                  ))
-                )}
-              </div>
-            </Card>
+                setIsWeightEntryDialogOpen(true)
+              }}
+              onEdit={(entry) => {
+                setEditingWeightEntry(entry)
+                setWeightEntryForm({
+                  weight: entry.weight.toString(),
+                  date: entry.date,
+                  notes: entry.notes || ""
+                })
+                setIsWeightEntryDialogOpen(true)
+              }}
+              onDelete={async (entry) => {
+                if (confirm("Are you sure you want to delete this weight entry?")) {
+                  try {
+                    const response = await fetch(`/api/admin/customers/${customerId}/progress?entry_id=${entry.id}`, {
+                      method: 'DELETE',
+                    })
+                    if (response.ok) {
+                      toast.success("Weight entry deleted successfully")
+                      fetchCustomerData()
+                    } else {
+                      const error = await response.json()
+                      toast.error(error.error || "Failed to delete weight entry")
+                    }
+                  } catch (error) {
+                    console.error("Error deleting weight entry:", error)
+                    toast.error("Failed to delete weight entry")
+                  }
+                }
+              }}
+              loading={false}
+              isAdmin={true}
+              weightUnit="kg"
+            />
 
             {/* Progress Photos Section */}
             <Card className="bg-card p-6">
@@ -3587,6 +3555,122 @@ export default function CustomerDetailPage() {
                 </Button>
                 <Button type="submit">
                   {editingWeightGoal ? "Update" : "Create"} Goal
+                </Button>
+              </div>
+            </form>
+          </DialogContent>
+        </Dialog>
+
+        {/* Add/Edit Weight Entry Dialog */}
+        <Dialog open={isWeightEntryDialogOpen} onOpenChange={setIsWeightEntryDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>{editingWeightEntry ? "Edit Weight Entry" : "Add Weight Entry"}</DialogTitle>
+              <DialogDescription>
+                {editingWeightEntry ? "Update weight entry details" : "Add a new weight entry for this customer"}
+              </DialogDescription>
+            </DialogHeader>
+            <form onSubmit={async (e) => {
+              e.preventDefault()
+              if (!weightEntryForm.weight || !weightEntryForm.date) {
+                toast.error("Please fill in all required fields")
+                return
+              }
+
+              try {
+                const url = `/api/admin/customers/${customerId}/progress`
+                const method = editingWeightEntry ? 'PUT' : 'POST'
+                const body = editingWeightEntry
+                  ? {
+                      entry_id: editingWeightEntry.id,
+                      weight: weightEntryForm.weight,
+                      date: weightEntryForm.date,
+                      notes: weightEntryForm.notes || null,
+                    }
+                  : {
+                      weight: weightEntryForm.weight,
+                      date: weightEntryForm.date,
+                      notes: weightEntryForm.notes || null,
+                    }
+
+                const response = await fetch(url, {
+                  method,
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify(body),
+                })
+
+                if (response.ok) {
+                  toast.success(editingWeightEntry ? "Weight entry updated successfully" : "Weight entry created successfully")
+                  setIsWeightEntryDialogOpen(false)
+                  setEditingWeightEntry(null)
+                  setWeightEntryForm({
+                    weight: "",
+                    date: new Date().toISOString().split('T')[0],
+                    notes: ""
+                  })
+                  fetchCustomerData()
+                } else {
+                  const error = await response.json()
+                  toast.error(error.error || "Failed to save weight entry")
+                }
+              } catch (error) {
+                console.error("Error saving weight entry:", error)
+                toast.error("Failed to save weight entry")
+              }
+            }} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="weight-entry-weight">Weight (kg) *</Label>
+                <Input
+                  id="weight-entry-weight"
+                  type="number"
+                  step="0.1"
+                  value={weightEntryForm.weight}
+                  onChange={(e) => setWeightEntryForm({ ...weightEntryForm, weight: e.target.value })}
+                  placeholder="75.0"
+                  required
+                  className="bg-background"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="weight-entry-date">Date *</Label>
+                <Input
+                  id="weight-entry-date"
+                  type="date"
+                  value={weightEntryForm.date}
+                  onChange={(e) => setWeightEntryForm({ ...weightEntryForm, date: e.target.value })}
+                  required
+                  className="bg-background"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="weight-entry-notes">Notes (Optional)</Label>
+                <Textarea
+                  id="weight-entry-notes"
+                  value={weightEntryForm.notes}
+                  onChange={(e) => setWeightEntryForm({ ...weightEntryForm, notes: e.target.value })}
+                  placeholder="Add any additional notes"
+                  rows={3}
+                  className="bg-background resize-none"
+                />
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    setIsWeightEntryDialogOpen(false)
+                    setEditingWeightEntry(null)
+                    setWeightEntryForm({
+                      weight: "",
+                      date: new Date().toISOString().split('T')[0],
+                      notes: ""
+                    })
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button type="submit">
+                  {editingWeightEntry ? "Update" : "Add"} Entry
                 </Button>
               </div>
             </form>

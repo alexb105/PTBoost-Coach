@@ -99,6 +99,17 @@ export async function POST(
 
     const supabase = createServerClient()
     
+    // Delete all existing weight goals for this customer to ensure only one goal exists at a time
+    const { error: deleteError } = await supabase
+      .from('weight_goals')
+      .delete()
+      .eq('customer_id', id)
+
+    if (deleteError) {
+      throw deleteError
+    }
+    
+    // Create the new weight goal
     const { data, error } = await supabase
       .from('weight_goals')
       .insert({

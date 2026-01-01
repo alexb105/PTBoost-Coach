@@ -11,7 +11,9 @@ import { useLanguage } from "@/contexts/language-context"
 export function BottomNav() {
   const pathname = usePathname()
   const { t } = useLanguage()
-  const { unreadCount, updateLastSeen, fetchUnreadCount } = useMessageNotifications({ enabled: !pathname?.startsWith("/admin") && !pathname?.startsWith("/auth") })
+  const { hasUnread, markAsSeen } = useMessageNotifications({ 
+    enabled: !pathname?.startsWith("/admin") && !pathname?.startsWith("/auth") 
+  })
 
   const navItems = [
     { href: "/", icon: Calendar, label: t("navigation.sessions") },
@@ -31,22 +33,17 @@ export function BottomNav() {
         {navItems.map((item) => {
           const isActive = pathname === item.href
           const Icon = item.icon
-          // Show badge only when there are unread messages and not on chat page
-          const showBadge = item.href === "/chat" && unreadCount > 0 && !isActive
-          
-          const handleChatClick = (e: React.MouseEvent) => {
-            if (item.href === "/chat") {
-              // Clear the badge by marking all messages as seen
-              updateLastSeen(new Date().toISOString())
-              fetchUnreadCount()
-            }
-          }
+          const showDot = item.href === "/chat" && hasUnread && !isActive
 
           return (
             <Link
               key={item.href}
               href={item.href}
-              onClick={handleChatClick}
+              onClick={() => {
+                if (item.href === "/chat") {
+                  markAsSeen()
+                }
+              }}
               className={cn(
                 "relative flex flex-1 flex-col items-center gap-1.5 py-3 transition-all duration-300 min-h-[44px] min-w-[44px] touch-manipulation",
                 isActive ? "text-primary" : "text-muted-foreground hover:text-foreground",
@@ -57,10 +54,8 @@ export function BottomNav() {
               )}
               <div className="relative">
                 <Icon className={cn("h-5 w-5 transition-transform", isActive && "scale-110")} />
-                {showBadge && (
-                  <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-destructive text-[10px] font-bold text-destructive-foreground">
-                    {unreadCount > 9 ? "9+" : unreadCount}
-                  </span>
+                {showDot && (
+                  <span className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-destructive" />
                 )}
               </div>
               <span className="text-[11px] font-medium tracking-wide">{item.label}</span>

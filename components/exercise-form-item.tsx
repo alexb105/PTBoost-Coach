@@ -159,28 +159,28 @@ export function ExerciseFormItem({
       if (entry.intensity) parts.push(entry.intensity)
     } else {
       // Sets-based PB
-      if (entry.reps) {
-        parts.push(`${entry.reps} ${entry.reps === "1" ? "rep" : "reps"}`)
-      }
-      if (entry.weight) {
-        // If weight doesn't already have units, assume kg
-        const weightValue = entry.weight.trim()
-        const hasUnits = /(kg|lbs|lb|kg\.|pounds?)/i.test(weightValue)
-        parts.push(hasUnits ? weightValue : `${weightValue}kg`)
-      }
-      if (entry.seconds) {
-        const secondsNum = parseInt(entry.seconds)
-        if (secondsNum === 1) {
-          parts.push("1 second")
-        } else if (secondsNum < 60) {
-          parts.push(`${secondsNum} seconds`)
+    if (entry.reps) {
+      parts.push(`${entry.reps} ${entry.reps === "1" ? "rep" : "reps"}`)
+    }
+    if (entry.weight) {
+      // If weight doesn't already have units, assume kg
+      const weightValue = entry.weight.trim()
+      const hasUnits = /(kg|lbs|lb|kg\.|pounds?)/i.test(weightValue)
+      parts.push(hasUnits ? weightValue : `${weightValue}kg`)
+    }
+    if (entry.seconds) {
+      const secondsNum = parseInt(entry.seconds)
+      if (secondsNum === 1) {
+        parts.push("1 second")
+      } else if (secondsNum < 60) {
+        parts.push(`${secondsNum} seconds`)
+      } else {
+        const minutes = Math.floor(secondsNum / 60)
+        const remainingSeconds = secondsNum % 60
+        if (remainingSeconds === 0) {
+          parts.push(`${minutes} ${minutes === 1 ? "minute" : "minutes"}`)
         } else {
-          const minutes = Math.floor(secondsNum / 60)
-          const remainingSeconds = secondsNum % 60
-          if (remainingSeconds === 0) {
-            parts.push(`${minutes} ${minutes === 1 ? "minute" : "minutes"}`)
-          } else {
-            parts.push(`${minutes}m ${remainingSeconds}s`)
+          parts.push(`${minutes}m ${remainingSeconds}s`)
           }
         }
       }
@@ -426,14 +426,14 @@ export function ExerciseFormItem({
                   <h3 className="text-sm font-semibold text-foreground">PB History</h3>
                   <div className="space-y-2 max-h-60 overflow-y-auto">
                     {pbHistory.map((entry, idx) => (
-                      <div
-                        key={idx}
+                        <div
+                          key={idx}
                         className="rounded-lg bg-card border border-border p-3 text-sm"
-                      >
+                        >
                         <div className="flex items-center justify-between mb-1">
-                          <span className="font-medium text-foreground">
-                            {formatPBValue(entry)}
-                          </span>
+                            <span className="font-medium text-foreground">
+                              {formatPBValue(entry)}
+                            </span>
                           {entry.workout_date && (
                             <span className="text-xs text-muted-foreground">
                               {format(parseISO(entry.workout_date), "MMM d, yyyy")}

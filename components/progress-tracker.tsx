@@ -26,12 +26,7 @@ import { useLanguage } from "@/contexts/language-context"
 import { toast } from "sonner"
 import { Progress } from "@/components/ui/progress"
 import { Badge } from "@/components/ui/badge"
-import {
-  ChartContainer,
-  ChartTooltip,
-  ChartTooltipContent,
-} from "@/components/ui/chart"
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, ReferenceLine } from "recharts"
+import { WeightTracker } from "@/components/weight-tracker"
 
 interface WeightEntry {
   id: string
@@ -82,7 +77,6 @@ export function ProgressTracker() {
   const [deletingPhotoId, setDeletingPhotoId] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const dropZoneRef = useRef<HTMLDivElement>(null)
-  const [weightPage, setWeightPage] = useState(1)
   const [photoPage, setPhotoPage] = useState(1)
   const ITEMS_PER_PAGE = 8
 
@@ -280,12 +274,6 @@ export function ProgressTracker() {
     }
   }
 
-  // Calculate pagination for weight entries
-  const weightTotalPages = Math.ceil(weightEntries.length / ITEMS_PER_PAGE)
-  const weightStartIndex = (weightPage - 1) * ITEMS_PER_PAGE
-  const weightEndIndex = weightStartIndex + ITEMS_PER_PAGE
-  const paginatedWeightEntries = weightEntries.slice(weightStartIndex, weightEndIndex)
-
   // Calculate pagination for progress photos
   const photoTotalPages = Math.ceil(progressPhotos.length / ITEMS_PER_PAGE)
   const photoStartIndex = (photoPage - 1) * ITEMS_PER_PAGE
@@ -316,6 +304,25 @@ export function ProgressTracker() {
       daysLeft: daysLeft > 0 ? daysLeft : 0
     }
   })
+
+  // Calculate Y-axis domain with 1kg intervals
+  const allWeights = [
+    ...chartData.map(d => d.weight),
+    ...goalsForChart.map(g => g.target_weight)
+  ]
+  const minWeight = allWeights.length > 0 ? Math.min(...allWeights) : 70
+  const maxWeight = allWeights.length > 0 ? Math.max(...allWeights) : 80
+  
+  // Round down to nearest 1kg below, round up to nearest 1kg above
+  // Add padding: 1kg below min, 1kg above max for better visualization
+  const yAxisMin = Math.max(0, Math.floor(minWeight - 1))
+  const yAxisMax = Math.ceil(maxWeight + 1)
+  
+  // Generate ticks every 1kg
+  const yAxisTicks: number[] = []
+  for (let i = yAxisMin; i <= yAxisMax; i += 1) {
+    yAxisTicks.push(i)
+  }
 
   return (
     <div className="mx-auto max-w-2xl p-4">
@@ -427,216 +434,75 @@ export function ProgressTracker() {
       )}
 
       {/* Weight Tracking Section */}
-      <Card className="mb-6 bg-card p-6">
-        <div className="mb-4 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-              <TrendingUp className="h-5 w-5 text-primary" />
-            </div>
-            <div>
-              <h2 className="font-semibold text-foreground">{t("progress.weight")}</h2>
-              <p className="text-sm text-muted-foreground">{t("progress.trackWeight")}</p>
-            </div>
-          </div>
-          <Dialog open={weightDialogOpen} onOpenChange={setWeightDialogOpen}>
-            <DialogTrigger asChild>
-              <Button size="sm" className="bg-primary text-primary-foreground hover:bg-primary/90">
-                <Plus className="mr-1 h-4 w-4" />
-                {t("common.add")}
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="bg-card">
-              <DialogHeader>
-                <DialogTitle>{t("progress.logWeight")}</DialogTitle>
-                <DialogDescription>{t("progress.enterCurrentWeight")}</DialogDescription>
-              </DialogHeader>
-              <form onSubmit={handleSaveWeight} className="space-y-4 py-4">
-                <div className="space-y-2">
-                  <Label htmlFor="weight">{t("progress.weightLbs")}</Label>
-                  <Input 
-                    id="weight" 
-                    type="number" 
-                    step="0.1"
-                    placeholder="82" 
-                    className="bg-background" 
-                    value={weightForm.weight}
-                    onChange={(e) => setWeightForm({ ...weightForm, weight: e.target.value })}
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="date">{t("workouts.date")}</Label>
-                  <Input 
-                    id="date" 
-                    type="date" 
-                    className="bg-background" 
-                    value={weightForm.date}
-                    onChange={(e) => setWeightForm({ ...weightForm, date: e.target.value })}
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="notes">{t("workouts.notes")}</Label>
-                  <Input 
-                    id="notes" 
-                    type="text" 
-                    placeholder="e.g., Morning weigh-in" 
-                    className="bg-background" 
-                    value={weightForm.notes}
-                    onChange={(e) => setWeightForm({ ...weightForm, notes: e.target.value })}
-                  />
-                </div>
-                <Button 
-                  type="submit" 
-                  className="w-full bg-primary text-primary-foreground hover:bg-primary/90"
-                  disabled={submitting}
-                >
-                  {submitting ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      {t("common.saving")}
-                    </>
-                  ) : (
-                    t("progress.saveWeight")
-                  )}
-                </Button>
-              </form>
-            </DialogContent>
-          </Dialog>
-        </div>
-
-        {/* Weight Progress Chart */}
-        {chartData.length > 0 && (
-          <div className="mb-6">
-            {/* Chart Legend */}
-            {goalsForChart.length > 0 && (
-              <div className="mb-3 flex items-center gap-4 text-sm">
-                <div className="flex items-center gap-2">
-                  <div 
-                    className="h-3 w-8 border-t-2 border-dashed" 
-                    style={{ borderColor: "hsl(221.2 83.2% 53.3%)" }}
-                  ></div>
-                  <span className="text-muted-foreground">Target Weight Goal</span>
-                </div>
+      <div className="mb-6">
+        <WeightTracker
+          weightEntries={weightEntries}
+          weightGoals={weightGoals}
+          onAdd={() => setWeightDialogOpen(true)}
+          loading={loading}
+          isAdmin={false}
+          weightUnit={t("progress.weightUnit")}
+        />
+        <Dialog open={weightDialogOpen} onOpenChange={setWeightDialogOpen}>
+          <DialogContent className="bg-card">
+            <DialogHeader>
+              <DialogTitle>{t("progress.logWeight")}</DialogTitle>
+              <DialogDescription>{t("progress.enterCurrentWeight")}</DialogDescription>
+            </DialogHeader>
+            <form onSubmit={handleSaveWeight} className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="weight">{t("progress.weightLbs")}</Label>
+                <Input 
+                  id="weight" 
+                  type="number" 
+                  step="0.1"
+                  placeholder="82" 
+                  className="bg-background" 
+                  value={weightForm.weight}
+                  onChange={(e) => setWeightForm({ ...weightForm, weight: e.target.value })}
+                  required
+                />
               </div>
-            )}
-            <ChartContainer
-              config={{
-                weight: {
-                  label: "Weight",
-                  color: "hsl(142.1 76.2% 36.3%)",
-                },
-                target: {
-                  label: "Target",
-                  color: "hsl(221.2 83.2% 53.3%)",
-                },
-              }}
-              className="h-[300px] w-full"
-            >
-              <LineChart data={chartData} margin={{ top: 30, right: 10, left: 0, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" className="stroke-border/50" />
-                <XAxis 
-                  dataKey="date" 
-                  className="text-xs fill-muted-foreground"
+              <div className="space-y-2">
+                <Label htmlFor="date">{t("workouts.date")}</Label>
+                <Input 
+                  id="date" 
+                  type="date" 
+                  className="bg-background" 
+                  value={weightForm.date}
+                  onChange={(e) => setWeightForm({ ...weightForm, date: e.target.value })}
+                  required
                 />
-                <YAxis 
-                  className="text-xs fill-muted-foreground"
-                  label={{ value: `Weight (${t("progress.weightUnit")})`, angle: -90, position: 'insideLeft' }}
-                  domain={['auto', 'auto']}
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="notes">{t("workouts.notes")}</Label>
+                <Input 
+                  id="notes" 
+                  type="text" 
+                  placeholder="e.g., Morning weigh-in" 
+                  className="bg-background" 
+                  value={weightForm.notes}
+                  onChange={(e) => setWeightForm({ ...weightForm, notes: e.target.value })}
                 />
-                <ChartTooltip content={<ChartTooltipContent />} />
-                <Line 
-                  type="monotone" 
-                  dataKey="weight" 
-                  name="weight"
-                  stroke="var(--color-weight)" 
-                  strokeWidth={3}
-                  dot={{ fill: "var(--color-weight)", r: 5, strokeWidth: 2, stroke: "#fff" }}
-                  activeDot={{ r: 7, strokeWidth: 2, stroke: "#fff" }}
-                  connectNulls={false}
-                />
-                {goalsForChart.map((goal) => {
-                  const daysText = goal.daysLeft === 0 
-                    ? "Today" 
-                    : goal.daysLeft === 1 
-                    ? "1 day left" 
-                    : `${goal.daysLeft} days left`
-                  return (
-                    <ReferenceLine 
-                      key={goal.id}
-                      y={goal.target_weight} 
-                      stroke="hsl(221.2 83.2% 53.3%)" 
-                      strokeWidth={2}
-                      strokeDasharray="5 5"
-                      label={{ 
-                        value: `Target: ${goal.target_weight.toFixed(1)} ${t("progress.weightUnit")} (${daysText})`, 
-                        position: "top",
-                        fill: "hsl(221.2 83.2% 53.3%)",
-                        fontSize: 12,
-                        fontWeight: 600,
-                        offset: 10
-                      }}
-                    />
-                  )
-                })}
-              </LineChart>
-            </ChartContainer>
-          </div>
-        )}
-
-        <div className="space-y-3">
-          {loading ? (
-            <div className="flex items-center justify-center py-4">
-              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-            </div>
-          ) : weightEntries.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-4">{t("progress.noWeightEntries")}</p>
-          ) : (
-            <>
-              {paginatedWeightEntries.map((entry) => (
-                <div key={entry.id} className="flex items-center justify-between rounded-lg bg-background p-3">
-                  <div className="flex flex-col">
-                    <span className="text-sm text-muted-foreground">
-                      {format(new Date(entry.date), "MMM d, yyyy")}
-                    </span>
-                    {entry.notes && (
-                      <span className="text-xs text-muted-foreground mt-1">{entry.notes}</span>
-                    )}
-                  </div>
-                  <span className="font-semibold text-foreground">{entry.weight.toFixed(1)} {t("progress.weightUnit")}</span>
-                </div>
-              ))}
-              
-              {/* Pagination Controls */}
-              {weightTotalPages > 1 && (
-                <div className="flex items-center justify-between pt-4 border-t border-border">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setWeightPage(prev => Math.max(1, prev - 1))}
-                    disabled={weightPage === 1}
-                  >
-                    <ChevronLeft className="h-4 w-4 mr-1" />
-                    Previous
-                  </Button>
-                  <span className="text-sm text-muted-foreground">
-                    Page {weightPage} of {weightTotalPages}
-                  </span>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setWeightPage(prev => Math.min(weightTotalPages, prev + 1))}
-                    disabled={weightPage === weightTotalPages}
-                  >
-                    Next
-                    <ChevronRight className="h-4 w-4 ml-1" />
-                  </Button>
-                </div>
-              )}
-            </>
-          )}
-        </div>
-      </Card>
+              </div>
+              <Button 
+                type="submit" 
+                className="w-full bg-primary text-primary-foreground hover:bg-primary/90"
+                disabled={submitting}
+              >
+                {submitting ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    {t("common.saving")}
+                  </>
+                ) : (
+                  t("progress.saveWeight")
+                )}
+              </Button>
+            </form>
+          </DialogContent>
+        </Dialog>
+      </div>
 
       {/* Progress Photos Section */}
       <Card className="bg-card p-6">
