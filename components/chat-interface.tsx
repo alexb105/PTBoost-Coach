@@ -106,13 +106,17 @@ export function ChatInterface() {
         if (response.ok) {
           const data = await response.json()
           const translated = data.translatedText || text
-          // Only update if we got a valid translation
-          if (translated && translated !== text) {
+          // Update translation state even if same (to mark as processed)
+          // The UI will show the original if translation is same
+          if (translated) {
             setTranslatedMessages(prev => ({ ...prev, [messageId]: translated }))
           }
+        } else {
+          // Log non-OK responses for debugging
+          console.debug(`Translation API returned status ${response.status} for message ${messageId}`)
         }
       } catch (error) {
-        // Silently fail - just use original text
+        // Log errors for debugging but don't show to user
         console.debug("Translation failed for message, using original text:", error)
       } finally {
         // Remove from translating set
@@ -138,14 +142,21 @@ export function ChatInterface() {
         
         // Translate messages if needed (only new ones)
         if (language !== 'en') {
-          fetchedMessages.forEach((message: Message) => {
-            // Only translate if not already translated and not in queue
-            if (!translatedMessages[message.id] && 
-                !translatingRef.current.has(message.id) &&
-                !translationQueueRef.current.find(item => item.messageId === message.id)) {
-              translateMessage(message.id, message.content)
+          // Use setTimeout to ensure state is updated before translating
+          setTimeout(() => {
+            fetchedMessages.forEach((message: Message) => {
+              // Only translate if not already translated and not in queue
+              if (!translatedMessages[message.id] && 
+                  !translatingRef.current.has(message.id) &&
+                  !translationQueueRef.current.find(item => item.messageId === message.id)) {
+                translateMessage(message.id, message.content)
+              }
+            })
+            // Ensure queue processing starts
+            if (!isProcessingQueueRef.current && translationQueueRef.current.length > 0) {
+              processTranslationQueue()
             }
-          })
+          }, 100)
         }
         
         // Update last seen timestamp to the most recent message
@@ -233,10 +244,39 @@ export function ChatInterface() {
         messages.forEach((message) => {
           translateMessage(message.id, message.content)
         })
+        // Ensure queue processing starts
+        if (!isProcessingQueueRef.current && translationQueueRef.current.length > 0) {
+          processTranslationQueue()
+        }
       }, 100)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [language])
+
+  // Ensure new messages are translated when they arrive
+  useEffect(() => {
+    if (language !== 'en' && messages.length > 0 && !loading) {
+      // Check for untranslated messages
+      const untranslatedMessages = messages.filter(
+        (message) =>
+          !translatedMessages[message.id] &&
+          !translatingRef.current.has(message.id) &&
+          !translationQueueRef.current.find((item) => item.messageId === message.id)
+      )
+
+      if (untranslatedMessages.length > 0) {
+        // Add untranslated messages to queue
+        untranslatedMessages.forEach((message) => {
+          translateMessage(message.id, message.content)
+        })
+        // Ensure queue processing starts
+        if (!isProcessingQueueRef.current && translationQueueRef.current.length > 0) {
+          processTranslationQueue()
+        }
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [messages, language, loading])
 
   // Mark messages as seen immediately when chat page is opened
   useEffect(() => {

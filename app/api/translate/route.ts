@@ -48,14 +48,23 @@ export async function POST(request: NextRequest) {
     try {
       const translateModule = await import('google-translate-api-x')
       const translate = translateModule.default || translateModule.translate || translateModule
-      const result = await translate(text, { to: targetCode })
+      
+      // Explicitly set auto-detect for source language
+      const result = await translate(text, { 
+        to: targetCode,
+        from: 'auto' // Explicitly enable auto-detection
+      })
       
       if (result && result.text) {
         const translated = result.text.trim()
-        // If translation is the same as original (likely already in target language), return original
-        if (translated.toLowerCase() === text.toLowerCase()) {
-          return NextResponse.json({ translatedText: text })
+        
+        // Check if translation actually changed the text
+        // Only skip if it's exactly the same (case-sensitive) to avoid false positives
+        if (translated === text) {
+          // If same, might already be in target language, but still return it
+          return NextResponse.json({ translatedText: translated })
         }
+        
         return NextResponse.json({
           translatedText: translated,
         })
@@ -74,8 +83,12 @@ export async function POST(request: NextRequest) {
         // Return original text on rate limit
         return NextResponse.json({ translatedText: text })
       } else {
-        // Only log non-rate-limit errors
+        // Log non-rate-limit errors for debugging
         console.debug('Translation request failed:', errorMessage)
+        // Try to get more details if available
+        if (translateError.stack) {
+          console.debug('Translation error stack:', translateError.stack)
+        }
       }
       // Return original text on any error
       return NextResponse.json({ translatedText: text })
