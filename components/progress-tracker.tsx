@@ -324,7 +324,6 @@ export function ProgressTracker() {
               
               const currentWeight = currentWeightEntry?.weight || null
               const progress = currentWeight ? ((currentWeight / goal.target_weight) * 100) : 0
-              const remaining = currentWeight ? (goal.target_weight - currentWeight) : null
 
               return (
                 <div key={goal.id} className="rounded-lg bg-background p-4 border border-border">
@@ -355,16 +354,6 @@ export function ProgressTracker() {
                           <span className="text-sm text-muted-foreground">Current Weight</span>
                           <span className="font-semibold text-foreground">{currentWeight} {t("progress.weightUnit")}</span>
                         </div>
-                        {remaining !== null && (
-                          <div className="flex items-center justify-between">
-                            <span className="text-sm text-muted-foreground">
-                              {remaining > 0 ? "Remaining" : "Exceeded by"}
-                            </span>
-                            <span className={`font-semibold ${remaining > 0 ? "text-foreground" : "text-destructive"}`}>
-                              {Math.abs(remaining).toFixed(1)} {t("progress.weightUnit")}
-                            </span>
-                          </div>
-                        )}
                         <Progress value={Math.min(progress, 100)} className="h-2" />
                       </>
                     )}
