@@ -36,9 +36,9 @@ export function ChatInterface() {
   const isProcessingQueueRef = useRef<boolean>(false)
 
   const translateMessage = async (messageId: string, text: string) => {
-    // Don't translate if language is English or if already translated
-    if (language === 'en' || translatedMessages[messageId]) {
-      return translatedMessages[messageId] || text
+    // Don't translate if already translated
+    if (translatedMessages[messageId]) {
+      return translatedMessages[messageId]
     }
 
     // Don't translate if already being translated
@@ -51,6 +51,7 @@ export function ChatInterface() {
       return text
     }
 
+    // Always translate (even if target is English, we still need to translate foreign language messages)
     // Add to queue instead of translating immediately
     if (!translationQueueRef.current.find(item => item.messageId === messageId)) {
       translationQueueRef.current.push({ messageId, text })
@@ -106,18 +107,35 @@ export function ChatInterface() {
         if (response.ok) {
           const data = await response.json()
           const translated = data.translatedText || text
-          // Update translation state even if same (to mark as processed)
-          // The UI will show the original if translation is same
+          
+          // Always update translation state, even if same (to mark as processed)
           if (translated) {
-            setTranslatedMessages(prev => ({ ...prev, [messageId]: translated }))
+            setTranslatedMessages(prev => {
+              const updated = { ...prev, [messageId]: translated }
+              // Log for debugging in development
+              if (process.env.NODE_ENV === 'development') {
+                console.log(`Translated message ${messageId}:`, {
+                  original: text.substring(0, 50),
+                  translated: translated.substring(0, 50),
+                  same: translated === text
+                })
+              }
+              return updated
+            })
           }
         } else {
           // Log non-OK responses for debugging
-          console.debug(`Translation API returned status ${response.status} for message ${messageId}`)
+          const errorText = await response.text().catch(() => '')
+          console.error(`Translation API returned status ${response.status} for message ${messageId}:`, errorText)
         }
       } catch (error) {
-        // Log errors for debugging but don't show to user
-        console.debug("Translation failed for message, using original text:", error)
+        // Log errors for debugging
+        console.error("Translation failed for message:", {
+          messageId,
+          text: text.substring(0, 50),
+          targetLang: language,
+          error
+        })
       } finally {
         // Remove from translating set
         translatingRef.current.delete(messageId)
@@ -140,24 +158,22 @@ export function ChatInterface() {
         const fetchedMessages = data.messages || []
         setMessages(fetchedMessages)
         
-        // Translate messages if needed (only new ones)
-        if (language !== 'en') {
-          // Use setTimeout to ensure state is updated before translating
-          setTimeout(() => {
-            fetchedMessages.forEach((message: Message) => {
-              // Only translate if not already translated and not in queue
-              if (!translatedMessages[message.id] && 
-                  !translatingRef.current.has(message.id) &&
-                  !translationQueueRef.current.find(item => item.messageId === message.id)) {
-                translateMessage(message.id, message.content)
-              }
-            })
-            // Ensure queue processing starts
-            if (!isProcessingQueueRef.current && translationQueueRef.current.length > 0) {
-              processTranslationQueue()
+        // Always translate messages (to user's selected language, even if it's English)
+        // Use setTimeout to ensure state is updated before translating
+        setTimeout(() => {
+          fetchedMessages.forEach((message: Message) => {
+            // Only translate if not already translated and not in queue
+            if (!translatedMessages[message.id] && 
+                !translatingRef.current.has(message.id) &&
+                !translationQueueRef.current.find(item => item.messageId === message.id)) {
+              translateMessage(message.id, message.content)
             }
-          }, 100)
-        }
+          })
+          // Ensure queue processing starts
+          if (!isProcessingQueueRef.current && translationQueueRef.current.length > 0) {
+            processTranslationQueue()
+          }
+        }, 100)
         
         // Update last seen timestamp to the most recent message
         if (fetchedMessages.length > 0) {
@@ -226,13 +242,7 @@ export function ChatInterface() {
 
   // Re-translate messages when language changes
   useEffect(() => {
-    if (language === 'en') {
-      // Clear translations when switching back to English
-      setTranslatedMessages({})
-      translationQueueRef.current = []
-      translatingRef.current.clear()
-      isProcessingQueueRef.current = false
-    } else if (language !== 'en' && messages.length > 0) {
+    if (messages.length > 0) {
       // Clear existing translations and re-translate when language changes
       setTranslatedMessages({})
       translationQueueRef.current = []
@@ -255,8 +265,8 @@ export function ChatInterface() {
 
   // Ensure new messages are translated when they arrive
   useEffect(() => {
-    if (language !== 'en' && messages.length > 0 && !loading) {
-      // Check for untranslated messages
+    if (messages.length > 0 && !loading) {
+      // Check for untranslated messages (always translate, even to English)
       const untranslatedMessages = messages.filter(
         (message) =>
           !translatedMessages[message.id] &&
@@ -442,10 +452,7 @@ export function ChatInterface() {
                       className={`p-3 ${message.sender === "customer" ? "bg-primary text-primary-foreground" : "bg-card"}`}
                     >
                       <p className="text-sm leading-relaxed">
-                        {language === 'en' 
-                          ? message.content 
-                          : (translatedMessages[message.id] || message.content)
-                        }
+                        {translatedMessages[message.id] || message.content}
                       </p>
                     </Card>
                     <p

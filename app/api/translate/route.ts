@@ -47,30 +47,30 @@ export async function POST(request: NextRequest) {
     // Use dynamic import to avoid module resolution issues
     try {
       const translateModule = await import('google-translate-api-x')
-      const translate = translateModule.default || translateModule.translate || translateModule
+      // The library exports translate as default or named export
+      const translate = translateModule.default || translateModule.translate
       
-      // Explicitly set auto-detect for source language
+      if (!translate || typeof translate !== 'function') {
+        console.error('Translation function not found in module:', translateModule)
+        return NextResponse.json({ translatedText: text })
+      }
+      
+      // Auto-detect source language (default behavior, no need to specify 'from')
       const result = await translate(text, { 
-        to: targetCode,
-        from: 'auto' // Explicitly enable auto-detection
+        to: targetCode
       })
       
       if (result && result.text) {
         const translated = result.text.trim()
         
-        // Check if translation actually changed the text
-        // Only skip if it's exactly the same (case-sensitive) to avoid false positives
-        if (translated === text) {
-          // If same, might already be in target language, but still return it
-          return NextResponse.json({ translatedText: translated })
-        }
-        
+        // Always return the translated text, even if it's the same
+        // (the library might return the same text if already in target language)
         return NextResponse.json({
           translatedText: translated,
         })
       } else {
         // Fallback: return original text if translation fails
-        console.warn('Translation API returned empty result')
+        console.warn('Translation API returned empty result for text:', text.substring(0, 50))
         return NextResponse.json({ translatedText: text })
       }
     } catch (translateError: any) {
@@ -84,11 +84,13 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ translatedText: text })
       } else {
         // Log non-rate-limit errors for debugging
-        console.debug('Translation request failed:', errorMessage)
-        // Try to get more details if available
-        if (translateError.stack) {
-          console.debug('Translation error stack:', translateError.stack)
-        }
+        console.error('Translation request failed:', {
+          error: errorMessage,
+          text: text.substring(0, 100),
+          targetLang,
+          targetCode,
+          stack: translateError.stack
+        })
       }
       // Return original text on any error
       return NextResponse.json({ translatedText: text })
