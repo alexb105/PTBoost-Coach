@@ -225,9 +225,9 @@ export default function CustomerDetailPage() {
   }, [customerId])
 
   const translateMessage = async (messageId: string, text: string) => {
-    // Don't translate if language is English or if already translated
-    if (language === 'en' || translatedMessages[messageId]) {
-      return translatedMessages[messageId] || text
+    // Don't translate if already translated
+    if (translatedMessages[messageId]) {
+      return translatedMessages[messageId]
     }
 
     // Don't translate if already being translated
@@ -240,6 +240,7 @@ export default function CustomerDetailPage() {
       return text
     }
 
+    // Always translate (even if target is English, we still need to translate foreign language messages)
     // Add to queue instead of translating immediately
     if (!translationQueueRef.current.find(item => item.messageId === messageId)) {
       translationQueueRef.current.push({ messageId, text })
@@ -295,8 +296,8 @@ export default function CustomerDetailPage() {
         if (response.ok) {
           const data = await response.json()
           const translated = data.translatedText || text
-          // Only update if we got a valid translation
-          if (translated && translated !== text) {
+          // Always update translation state, even if same (to mark as processed)
+          if (translated) {
             setTranslatedMessages(prev => ({ ...prev, [messageId]: translated }))
           }
         }
@@ -335,8 +336,8 @@ export default function CustomerDetailPage() {
           
           setMessages(sortedMessages)
           
-          // Translate messages if needed (only new ones)
-          if (language !== 'en') {
+          // Always translate messages (to user's selected language, even if it's English)
+          setTimeout(() => {
             sortedMessages.forEach((message: Message) => {
               // Only translate if not already translated and not in queue
               if (!translatedMessages[message.id] && 
@@ -345,7 +346,11 @@ export default function CustomerDetailPage() {
                 translateMessage(message.id, message.content)
               }
             })
-          }
+            // Ensure queue processing starts
+            if (!isProcessingQueueRef.current && translationQueueRef.current.length > 0) {
+              processTranslationQueue()
+            }
+          }, 100)
           
           // Update last seen timestamp to the most recent message
           if (sortedMessages.length > 0) {
@@ -387,13 +392,7 @@ export default function CustomerDetailPage() {
 
   // Re-translate messages when language changes
   useEffect(() => {
-    if (language === 'en') {
-      // Clear translations when switching back to English
-      setTranslatedMessages({})
-      translationQueueRef.current = []
-      translatingRef.current.clear()
-      isProcessingQueueRef.current = false
-    } else if (language !== 'en' && messages.length > 0) {
+    if (messages.length > 0) {
       // Clear existing translations and re-translate when language changes
       setTranslatedMessages({})
       translationQueueRef.current = []
@@ -405,10 +404,39 @@ export default function CustomerDetailPage() {
         messages.forEach((message) => {
           translateMessage(message.id, message.content)
         })
+        // Ensure queue processing starts
+        if (!isProcessingQueueRef.current && translationQueueRef.current.length > 0) {
+          processTranslationQueue()
+        }
       }, 100)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [language])
+
+  // Ensure new messages are translated when they arrive
+  useEffect(() => {
+    if (messages.length > 0 && activeTab === "chat") {
+      // Check for untranslated messages (always translate, even to English)
+      const untranslatedMessages = messages.filter(
+        (message) =>
+          !translatedMessages[message.id] &&
+          !translatingRef.current.has(message.id) &&
+          !translationQueueRef.current.find((item) => item.messageId === message.id)
+      )
+
+      if (untranslatedMessages.length > 0) {
+        // Add untranslated messages to queue
+        untranslatedMessages.forEach((message) => {
+          translateMessage(message.id, message.content)
+        })
+        // Ensure queue processing starts
+        if (!isProcessingQueueRef.current && translationQueueRef.current.length > 0) {
+          processTranslationQueue()
+        }
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [messages, language, activeTab])
 
   // Mark messages as seen immediately when chat tab is opened
   useEffect(() => {
@@ -600,14 +628,20 @@ export default function CustomerDetailPage() {
         })
         setMessages(sortedMessages)
         
-        // Translate messages if needed
-        if (language !== 'en') {
+        // Always translate messages (to user's selected language, even if it's English)
+        setTimeout(() => {
           sortedMessages.forEach((message: Message) => {
-            if (!translatedMessages[message.id]) {
+            if (!translatedMessages[message.id] && 
+                !translatingRef.current.has(message.id) &&
+                !translationQueueRef.current.find(item => item.messageId === message.id)) {
               translateMessage(message.id, message.content)
             }
           })
-        }
+          // Ensure queue processing starts
+          if (!isProcessingQueueRef.current && translationQueueRef.current.length > 0) {
+            processTranslationQueue()
+          }
+        }, 100)
       }
 
       if (nutritionRes.ok) {
@@ -1635,10 +1669,7 @@ export default function CustomerDetailPage() {
                               }`}
                             >
                               <p className="text-sm leading-relaxed">
-                                {language === 'en' 
-                                  ? message.content 
-                                  : (translatedMessages[message.id] || message.content)
-                                }
+                                {translatedMessages[message.id] || message.content}
                               </p>
                             </Card>
                             <p

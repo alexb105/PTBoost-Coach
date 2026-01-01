@@ -31,17 +31,11 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // If target language is English, return text as-is
-    if (targetLang === 'en') {
-      return NextResponse.json({ translatedText: text })
-    }
-
     const targetCode = LANGUAGE_CODES[targetLang] || 'en'
-
-    // If target code is still English, return as-is
-    if (targetCode === 'en') {
-      return NextResponse.json({ translatedText: text })
-    }
+    
+    // Always attempt translation with auto-detection
+    // The library will auto-detect the source language and translate to target
+    // If source and target are the same, it will return the original text
 
     // Use Google Translate API (free, no API key required)
     // Use dynamic import to avoid module resolution issues
@@ -56,6 +50,7 @@ export async function POST(request: NextRequest) {
       }
       
       // Auto-detect source language (default behavior, no need to specify 'from')
+      // The library will automatically detect the source language
       const result = await translate(text, { 
         to: targetCode
       })
@@ -63,10 +58,23 @@ export async function POST(request: NextRequest) {
       if (result && result.text) {
         const translated = result.text.trim()
         
-        // Always return the translated text, even if it's the same
-        // (the library might return the same text if already in target language)
+        // Log detected language if available (for debugging)
+        const detectedLang = result.from?.language?.iso || 'unknown'
+        if (process.env.NODE_ENV === 'development') {
+          console.log('Translation result:', {
+            original: text.substring(0, 50),
+            translated: translated.substring(0, 50),
+            detectedSourceLang: detectedLang,
+            targetLang: targetCode,
+            changed: translated !== text
+          })
+        }
+        
+        // Always return the translated text
+        // If source and target are the same, the library will return the original text
         return NextResponse.json({
           translatedText: translated,
+          detectedSourceLang: detectedLang !== 'unknown' ? detectedLang : undefined
         })
       } else {
         // Fallback: return original text if translation fails
