@@ -95,7 +95,7 @@ export default function AdminLoginPage() {
                 <Input
                   id="admin-email"
                   type="email"
-                  placeholder="admin@apextraining.com"
+                  placeholder="Enter admin email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
