@@ -33,6 +33,12 @@ export default function TrainerLoginPage() {
       const data = await response.json()
 
       if (!response.ok) {
+        // If email not verified, redirect to verification page
+        if (data.requiresVerification && data.email) {
+          toast.error("Please verify your email address first")
+          router.push(`/auth/trainer/verify?email=${encodeURIComponent(data.email)}`)
+          return
+        }
         throw new Error(data.error || "Login failed")
       }
 

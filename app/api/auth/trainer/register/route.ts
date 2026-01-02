@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { createServerClient } from '@/lib/supabase'
-import { createTrainerSessionToken, setTrainerSessionCookie } from '@/lib/trainer-auth'
 import { seedDefaultExercises } from '@/lib/seed-default-exercises'
+import { generateVerificationCode, sendVerificationEmail } from '@/lib/email-verification'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
@@ -68,6 +68,11 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Generate verification code
+    const verificationCode = generateVerificationCode()
+    const codeExpiresAt = new Date()
+    codeExpiresAt.setHours(codeExpiresAt.getHours() + 24) // Expires in 24 hours
+
     // Create trainer record using service role
     const supabase = createServerClient()
     const { data: trainer, error: trainerError } = await supabase
@@ -80,6 +85,9 @@ export async function POST(request: NextRequest) {
         subscription_tier: 'free',
         subscription_status: 'active',
         max_clients: 3,
+        email_verified: false,
+        verification_code: verificationCode,
+        verification_code_expires_at: codeExpiresAt.toISOString(),
       })
       .select()
       .single()
@@ -94,6 +102,14 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Send verification email
+    try {
+      await sendVerificationEmail(email, verificationCode, fullName || undefined)
+    } catch (emailError) {
+      console.error('Error sending verification email:', emailError)
+      // Don't fail registration if email fails - user can request resend
+    }
+
     // Seed default exercises for the new trainer
     try {
       await seedDefaultExercises(supabase, trainer.id)
@@ -102,26 +118,17 @@ export async function POST(request: NextRequest) {
       // Don't fail registration if exercise seeding fails - trainer can add exercises manually
     }
 
-    // Create session token
-    const sessionToken = createTrainerSessionToken(trainer.id, email)
-
-    // Create response with session cookie
-    const response = NextResponse.json(
+    // Return response without creating session - user must verify email first
+    return NextResponse.json(
       { 
         success: true, 
-        message: 'Account created successfully',
-        trainer: {
-          id: trainer.id,
-          email: trainer.email,
-          fullName: trainer.full_name,
-          businessName: trainer.business_name,
-          subscriptionTier: trainer.subscription_tier,
-        }
+        message: 'Account created successfully. Please check your email for verification code.',
+        trainerId: trainer.id,
+        email: trainer.email,
+        requiresVerification: true,
       },
       { status: 201 }
     )
-
-    return setTrainerSessionCookie(response, sessionToken)
   } catch (error) {
     console.error('Trainer registration error:', error)
     return NextResponse.json(

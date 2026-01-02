@@ -49,6 +49,11 @@ export async function checkTrainerSession(request: NextRequest): Promise<Trainer
       return null
     }
 
+    // Check if email is verified
+    if (!trainer.email_verified) {
+      return null
+    }
+
     return {
       trainerId: trainer.id,
       authUserId: trainer.auth_user_id,

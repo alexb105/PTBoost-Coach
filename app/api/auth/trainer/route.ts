@@ -90,6 +90,18 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Check if email is verified
+    if (!trainer.email_verified) {
+      return NextResponse.json(
+        { 
+          error: 'Please verify your email address before logging in.',
+          requiresVerification: true,
+          email: trainer.email,
+        },
+        { status: 403 }
+      )
+    }
+
     // Check subscription status
     if (trainer.subscription_status === 'expired') {
       return NextResponse.json(

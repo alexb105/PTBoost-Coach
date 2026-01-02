@@ -66,8 +66,8 @@ export default function TrainerRegisterPage() {
         throw new Error(data.error || "Registration failed")
       }
 
-      toast.success("Account created! Welcome to PT Boost!")
-      router.push("/trainer")
+      toast.success("Account created! Please check your email for verification code.")
+      router.push(`/auth/trainer/verify?email=${encodeURIComponent(formData.email)}`)
     } catch (error: any) {
       toast.error(error.message || "Failed to create account")
     } finally {
