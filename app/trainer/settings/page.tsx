@@ -345,7 +345,9 @@ function SettingsContent() {
                 <div className="space-y-2 text-sm">
                   {subscriptionStatus.currentPeriodEnd && (
                     <p className="flex items-center justify-between">
-                      <span className="text-muted-foreground">Next billing date:</span>
+                      <span className="text-muted-foreground">
+                        {subscriptionStatus.cancelAtPeriodEnd ? 'Access until:' : 'Next billing date:'}
+                      </span>
                       <span className="font-medium">
                         {new Date(subscriptionStatus.currentPeriodEnd).toLocaleDateString('en-US', {
                           year: 'numeric',
@@ -357,17 +359,37 @@ function SettingsContent() {
                   )}
                   <p className="flex items-center justify-between">
                     <span className="text-muted-foreground">Status:</span>
-                    <Badge variant={subscriptionStatus.status === 'active' ? 'default' : 'secondary'}>
-                      {subscriptionStatus.status}
+                    <Badge variant={
+                      subscriptionStatus.cancelAtPeriodEnd 
+                        ? 'secondary' 
+                        : subscriptionStatus.status === 'active' 
+                          ? 'default' 
+                          : 'secondary'
+                    }>
+                      {subscriptionStatus.cancelAtPeriodEnd ? 'Cancelling' : subscriptionStatus.status}
                     </Badge>
                   </p>
                 </div>
                 {subscriptionStatus.cancelAtPeriodEnd && (
                   <div className="flex items-start gap-2 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 mt-3">
                     <AlertCircle className="h-4 w-4 text-amber-500 mt-0.5 shrink-0" />
-                    <p className="text-sm text-amber-600 dark:text-amber-400">
-                      Your subscription is set to cancel at the end of the current billing period.
-                    </p>
+                    <div className="text-sm text-amber-600 dark:text-amber-400">
+                      <p className="font-medium">Subscription scheduled to cancel</p>
+                      <p className="mt-1">
+                        You will keep access to your {tierInfo.name} plan until{' '}
+                        <strong>
+                          {subscriptionStatus.currentPeriodEnd 
+                            ? new Date(subscriptionStatus.currentPeriodEnd).toLocaleDateString('en-US', {
+                                year: 'numeric',
+                                month: 'long',
+                                day: 'numeric'
+                              })
+                            : 'the end of your billing period'
+                          }
+                        </strong>
+                        . After that, you&apos;ll be downgraded to the Free plan.
+                      </p>
+                    </div>
                   </div>
                 )}
               </div>

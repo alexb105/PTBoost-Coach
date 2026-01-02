@@ -171,6 +171,13 @@ export async function POST(request: NextRequest) {
       case 'customer.subscription.updated': {
         const subscription = event.data.object as Stripe.Subscription
         
+        console.log('📋 Subscription event:', {
+          type: event.type,
+          status: subscription.status,
+          cancel_at_period_end: subscription.cancel_at_period_end,
+          current_period_end: subscription.current_period_end,
+        })
+        
         // Find trainer by stripe_customer_id
         const { data: trainer, error: trainerError } = await supabase
           .from('trainers')
@@ -194,17 +201,25 @@ export async function POST(request: NextRequest) {
 
         const tierDetails = TIER_DETAILS[tier]
         
-        // Determine status
+        // Determine status - keep active if subscription is active, even if set to cancel at period end
+        // This ensures the trainer keeps their paid tier until the period ends
         let status: 'active' | 'cancelled' | 'expired' | 'trial' = 'active'
         if (subscription.status === 'canceled') {
+          // Only mark as cancelled when actually cancelled (not cancel_at_period_end)
           status = 'cancelled'
         } else if (subscription.status === 'trialing') {
           status = 'trial'
         } else if (['past_due', 'unpaid', 'incomplete_expired'].includes(subscription.status)) {
           status = 'expired'
+        } else if (subscription.status === 'active' && subscription.cancel_at_period_end) {
+          // Subscription is set to cancel at period end - keep active status
+          // They paid for this period, so they keep access
+          status = 'active'
+          console.log('⏳ Subscription will cancel at period end, keeping active until:', 
+            new Date(subscription.current_period_end * 1000).toISOString())
         }
 
-        // Update trainer subscription
+        // Update trainer subscription - keep their current tier until period ends
         const { error: updateError } = await supabase
           .from('trainers')
           .update({
@@ -221,25 +236,44 @@ export async function POST(request: NextRequest) {
 
         if (updateError) {
           console.error('Error updating trainer subscription:', updateError)
-        } else if (event.type === 'customer.subscription.updated' && trainer.subscription_tier !== tier) {
-          // Notify admin of plan change
-          await sendAdminNotification({
-            subject: `📊 Subscription Changed: ${trainer.subscription_tier} → ${tier}`,
-            message: `A trainer has changed their plan from ${trainer.subscription_tier} to ${tier}.`,
-            trainerEmail: trainer.email,
-          })
+        } else {
+          // Notify admin of changes
+          if (event.type === 'customer.subscription.updated') {
+            if (subscription.cancel_at_period_end) {
+              // Notify admin of scheduled cancellation
+              await sendAdminNotification({
+                subject: '⏳ Subscription Scheduled to Cancel',
+                message: `A trainer has scheduled their ${tier} subscription to cancel at the end of the billing period (${new Date(subscription.current_period_end * 1000).toLocaleDateString()}).`,
+                trainerEmail: trainer.email,
+              })
+            } else if (trainer.subscription_tier !== tier) {
+              // Notify admin of plan change
+              await sendAdminNotification({
+                subject: `📊 Subscription Changed: ${trainer.subscription_tier} → ${tier}`,
+                message: `A trainer has changed their plan from ${trainer.subscription_tier} to ${tier}.`,
+                trainerEmail: trainer.email,
+              })
+            }
+          }
         }
 
         break
       }
 
       case 'customer.subscription.deleted': {
+        // This event fires when the subscription actually ends
+        // (either immediately cancelled or at period end after cancel_at_period_end)
         const subscription = event.data.object as Stripe.Subscription
+        
+        console.log('🚫 Subscription deleted:', {
+          subscriptionId: subscription.id,
+          customer: subscription.customer,
+        })
         
         // Find trainer by stripe_customer_id
         const { data: trainer, error: trainerError } = await supabase
           .from('trainers')
-          .select('id, email')
+          .select('id, email, subscription_tier')
           .eq('stripe_customer_id', subscription.customer as string)
           .single()
 
@@ -248,13 +282,16 @@ export async function POST(request: NextRequest) {
           break
         }
 
-        // Downgrade to free tier
+        const previousTier = trainer.subscription_tier
+        
+        // Now the subscription has actually ended - downgrade to free tier
         const { error: updateError } = await supabase
           .from('trainers')
           .update({
             subscription_tier: 'free',
             subscription_status: 'cancelled',
             stripe_subscription_id: null,
+            subscription_expires_at: null,
             max_clients: TIER_DETAILS.free.maxClients,
             updated_at: new Date().toISOString(),
           })
@@ -263,10 +300,12 @@ export async function POST(request: NextRequest) {
         if (updateError) {
           console.error('Error updating trainer subscription:', updateError)
         } else {
+          console.log(`✅ Trainer ${trainer.email} downgraded from ${previousTier} to free`)
+          
           // Notify admin
           await sendAdminNotification({
-            subject: '❌ Subscription Cancelled',
-            message: `A trainer has cancelled their subscription and been downgraded to the free plan.`,
+            subject: '❌ Subscription Ended',
+            message: `A trainer's ${previousTier} subscription has ended. They have been downgraded to the free plan.`,
             trainerEmail: trainer.email,
           })
         }
