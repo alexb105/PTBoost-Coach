@@ -81,82 +81,82 @@ export default function TrainerRegisterPage() {
       <div className="fixed inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHZpZXdCb3g9IjAgMCA2MCA2MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48ZyBmaWxsPSJub25lIiBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxnIGZpbGw9IiMyMjIiIGZpbGwtb3BhY2l0eT0iMC4wNCI+PHBhdGggZD0iTTM2IDM0djItSDI0di0yaDEyem0wLTRWMjhIMjR2Mmgxem0tMTIgMGgyLTJ2Mmgtdi0yem0wIDBoMnYtMmgtMnYyem0xMiAwdi0ySDI0djJoMTJ6bTAtNHYtMkgyNHYyaDEyeiIvPjwvZz48L2c+PC9zdmc+')] opacity-50" />
       
       {/* Left Side - Features */}
-      <div className="hidden lg:flex lg:w-1/2 relative z-10 flex-col justify-center p-12">
-        <div className="max-w-md">
-          <div className="mb-8">
-            <div className="mb-4 inline-flex h-14 w-14 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 shadow-lg shadow-emerald-500/30">
-              <Dumbbell className="h-7 w-7 text-white" />
+      <div className="hidden lg:flex lg:w-1/2 relative z-10 flex-col justify-center px-8 xl:px-12 py-8">
+        <div className="max-w-lg">
+          <div className="mb-6">
+            <div className="mb-3 inline-flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 shadow-lg shadow-emerald-500/30">
+              <Dumbbell className="h-6 w-6 text-white" />
             </div>
-            <h1 className="text-4xl font-bold text-white mb-3">
+            <h1 className="text-3xl xl:text-4xl font-bold text-white mb-2 leading-tight">
               Scale Your <span className="text-emerald-400">Personal Training</span> Business
             </h1>
-            <p className="text-lg text-slate-400 mb-2">
+            <p className="text-base xl:text-lg text-slate-400 mb-2 leading-relaxed">
               The all-in-one platform trusted by thousands of trainers to grow their business, engage clients, and deliver results.
             </p>
-            <div className="flex items-center gap-2 text-emerald-400 text-sm font-medium">
-              <Sparkles className="h-4 w-4" />
+            <div className="flex items-center gap-2 text-emerald-400 text-xs xl:text-sm font-medium">
+              <Sparkles className="h-3.5 w-3.5" />
               <span>Start free • Upgrade anytime • Cancel anytime</span>
             </div>
           </div>
 
-          <div className="space-y-3">
+          <div className="grid grid-cols-2 gap-3 mb-6">
             {FEATURES.map((feature, index) => (
-              <div key={index} className="flex items-start gap-3 group">
-                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-400 group-hover:bg-emerald-500/20 transition-colors shrink-0">
-                  <feature.icon className="h-5 w-5" />
+              <div key={index} className="flex items-start gap-2.5 group">
+                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-400 group-hover:bg-emerald-500/20 transition-colors shrink-0 mt-0.5">
+                  <feature.icon className="h-4 w-4" />
                 </div>
-                <span className="text-slate-300 pt-2">{feature.text}</span>
+                <span className="text-sm text-slate-300 leading-snug">{feature.text}</span>
               </div>
             ))}
           </div>
 
-          <div className="mt-10 p-6 rounded-xl bg-gradient-to-br from-emerald-500/10 to-teal-600/10 border border-emerald-500/20">
-            <div className="flex items-start gap-2 mb-3">
+          <div className="p-5 rounded-xl bg-gradient-to-br from-emerald-500/10 to-teal-600/10 border border-emerald-500/20 mb-5">
+            <div className="flex items-start gap-2 mb-2.5">
               <div className="flex -space-x-1">
                 {[1, 2, 3, 4, 5].map((i) => (
-                  <div key={i} className="h-5 w-5 rounded-full bg-emerald-500 border-2 border-slate-900" />
+                  <div key={i} className="h-4 w-4 rounded-full bg-emerald-500 border-2 border-slate-900" />
                 ))}
               </div>
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-0.5">
                 {[1, 2, 3, 4, 5].map((i) => (
-                  <Sparkles key={i} className="h-3 w-3 text-emerald-400 fill-emerald-400" />
+                  <Sparkles key={i} className="h-2.5 w-2.5 text-emerald-400 fill-emerald-400" />
                 ))}
               </div>
             </div>
-            <p className="text-slate-200 italic text-base leading-relaxed">
+            <p className="text-slate-200 italic text-sm leading-relaxed mb-3">
               &ldquo;PT Boost has transformed how I manage my clients. I&apos;ve grown from 5 to 25 clients in just 3 months while saving 10+ hours per week on admin tasks!&rdquo;
             </p>
-            <div className="mt-4 flex items-center gap-3">
-              <div className="h-10 w-10 rounded-full bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center text-white font-semibold">
+            <div className="flex items-center gap-2.5">
+              <div className="h-9 w-9 rounded-full bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center text-white font-semibold text-sm">
                 JD
               </div>
               <div>
-                <p className="text-white font-medium">James Davis</p>
-                <p className="text-sm text-slate-400">Personal Trainer, London</p>
+                <p className="text-white font-medium text-sm">James Davis</p>
+                <p className="text-xs text-slate-400">Personal Trainer, London</p>
               </div>
             </div>
           </div>
           
           {/* Stats */}
-          <div className="mt-8 grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-3 gap-3">
             <div className="text-center">
-              <div className="text-2xl font-bold text-emerald-400">10K+</div>
-              <div className="text-xs text-slate-400 mt-1">Active Trainers</div>
+              <div className="text-xl xl:text-2xl font-bold text-emerald-400">10K+</div>
+              <div className="text-xs text-slate-400 mt-0.5">Active Trainers</div>
             </div>
             <div className="text-center">
-              <div className="text-2xl font-bold text-emerald-400">50K+</div>
-              <div className="text-xs text-slate-400 mt-1">Clients Managed</div>
+              <div className="text-xl xl:text-2xl font-bold text-emerald-400">50K+</div>
+              <div className="text-xs text-slate-400 mt-0.5">Clients Managed</div>
             </div>
             <div className="text-center">
-              <div className="text-2xl font-bold text-emerald-400">4.9★</div>
-              <div className="text-xs text-slate-400 mt-1">Average Rating</div>
+              <div className="text-xl xl:text-2xl font-bold text-emerald-400">4.9★</div>
+              <div className="text-xs text-slate-400 mt-0.5">Average Rating</div>
             </div>
           </div>
         </div>
       </div>
 
       {/* Right Side - Form */}
-      <div className="w-full lg:w-1/2 flex items-center justify-center p-6 lg:p-12 relative z-10">
+      <div className="w-full lg:w-1/2 flex items-center justify-center p-6 lg:px-8 xl:px-12 lg:py-8 relative z-10">
         <div className="w-full max-w-md">
           {/* Mobile Logo */}
           <div className="lg:hidden mb-8 text-center">
@@ -169,24 +169,24 @@ export default function TrainerRegisterPage() {
           {/* Back Button */}
           <Link
             href="/auth/trainer"
-            className="mb-6 inline-flex items-center gap-2 text-sm text-slate-400 hover:text-white transition-colors"
+            className="mb-4 lg:mb-5 inline-flex items-center gap-2 text-sm text-slate-400 hover:text-white transition-colors"
           >
             <ArrowLeft className="h-4 w-4" />
             Back to Login
           </Link>
 
           <Card className="border-slate-800 bg-slate-900/80 shadow-2xl shadow-black/50 backdrop-blur-xl">
-            <CardHeader className="space-y-1 pb-4">
-              <CardTitle className="text-2xl font-bold tracking-tight text-white">Start Your Free Account</CardTitle>
-              <CardDescription className="text-slate-400">
+            <CardHeader className="space-y-1 pb-3">
+              <CardTitle className="text-xl xl:text-2xl font-bold tracking-tight text-white">Start Your Free Account</CardTitle>
+              <CardDescription className="text-sm text-slate-400">
                 Join thousands of trainers. No credit card required. Upgrade when you&apos;re ready to scale.
               </CardDescription>
             </CardHeader>
-            <CardContent>
-              <form onSubmit={handleRegister} className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="fullName" className="text-sm font-medium text-slate-300">
+            <CardContent className="pt-2">
+              <form onSubmit={handleRegister} className="space-y-3.5">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="fullName" className="text-xs font-medium text-slate-300">
                       First Name
                     </Label>
                     <Input
@@ -196,11 +196,11 @@ export default function TrainerRegisterPage() {
                       value={formData.fullName}
                       onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
                       required
-                      className="h-11 bg-slate-800/50 border-slate-700 text-white placeholder:text-slate-500 focus:border-emerald-500 focus:ring-emerald-500/20"
+                      className="h-10 bg-slate-800/50 border-slate-700 text-white placeholder:text-slate-500 focus:border-emerald-500 focus:ring-emerald-500/20 text-sm"
                     />
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="businessName" className="text-sm font-medium text-slate-300">
+                  <div className="space-y-1.5">
+                    <Label htmlFor="businessName" className="text-xs font-medium text-slate-300">
                       Business Name
                     </Label>
                     <Input
@@ -209,13 +209,13 @@ export default function TrainerRegisterPage() {
                       placeholder="JS Fitness"
                       value={formData.businessName}
                       onChange={(e) => setFormData({ ...formData, businessName: e.target.value })}
-                      className="h-11 bg-slate-800/50 border-slate-700 text-white placeholder:text-slate-500 focus:border-emerald-500 focus:ring-emerald-500/20"
+                      className="h-10 bg-slate-800/50 border-slate-700 text-white placeholder:text-slate-500 focus:border-emerald-500 focus:ring-emerald-500/20 text-sm"
                     />
                   </div>
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="email" className="text-sm font-medium text-slate-300">
+                <div className="space-y-1.5">
+                  <Label htmlFor="email" className="text-xs font-medium text-slate-300">
                     Email Address
                   </Label>
                   <Input
@@ -225,12 +225,12 @@ export default function TrainerRegisterPage() {
                     value={formData.email}
                     onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                     required
-                    className="h-11 bg-slate-800/50 border-slate-700 text-white placeholder:text-slate-500 focus:border-emerald-500 focus:ring-emerald-500/20"
+                    className="h-10 bg-slate-800/50 border-slate-700 text-white placeholder:text-slate-500 focus:border-emerald-500 focus:ring-emerald-500/20 text-sm"
                   />
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="password" className="text-sm font-medium text-slate-300">
+                <div className="space-y-1.5">
+                  <Label htmlFor="password" className="text-xs font-medium text-slate-300">
                     Password
                   </Label>
                   <Input
@@ -241,12 +241,12 @@ export default function TrainerRegisterPage() {
                     onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                     required
                     minLength={8}
-                    className="h-11 bg-slate-800/50 border-slate-700 text-white placeholder:text-slate-500 focus:border-emerald-500 focus:ring-emerald-500/20"
+                    className="h-10 bg-slate-800/50 border-slate-700 text-white placeholder:text-slate-500 focus:border-emerald-500 focus:ring-emerald-500/20 text-sm"
                   />
                 </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="confirmPassword" className="text-sm font-medium text-slate-300">
+                <div className="space-y-1.5">
+                  <Label htmlFor="confirmPassword" className="text-xs font-medium text-slate-300">
                     Confirm Password
                   </Label>
                   <Input
@@ -256,13 +256,13 @@ export default function TrainerRegisterPage() {
                     value={formData.confirmPassword}
                     onChange={(e) => setFormData({ ...formData, confirmPassword: e.target.value })}
                     required
-                    className="h-11 bg-slate-800/50 border-slate-700 text-white placeholder:text-slate-500 focus:border-emerald-500 focus:ring-emerald-500/20"
+                    className="h-10 bg-slate-800/50 border-slate-700 text-white placeholder:text-slate-500 focus:border-emerald-500 focus:ring-emerald-500/20 text-sm"
                   />
                 </div>
 
                 <Button 
                   type="submit" 
-                  className="h-11 w-full font-semibold bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 shadow-lg shadow-emerald-500/25 text-white"
+                  className="h-10 w-full font-semibold bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 shadow-lg shadow-emerald-500/25 text-white text-sm"
                   disabled={loading}
                 >
                   {loading ? (
@@ -278,7 +278,7 @@ export default function TrainerRegisterPage() {
                   )}
                 </Button>
 
-                <p className="text-xs text-slate-500 text-center">
+                <p className="text-xs text-slate-500 text-center leading-relaxed">
                   By creating an account, you agree to our{" "}
                   <a href="#" className="text-emerald-400 hover:text-emerald-300">Terms of Service</a>
                   {" "}and{" "}
@@ -286,7 +286,7 @@ export default function TrainerRegisterPage() {
                 </p>
               </form>
 
-              <div className="mt-6 text-center">
+              <div className="mt-4 text-center">
                 <p className="text-sm text-slate-400">
                   Already have an account?{" "}
                   <Link 
@@ -301,7 +301,7 @@ export default function TrainerRegisterPage() {
           </Card>
 
           {/* Trust Badges */}
-          <div className="mt-6 flex items-center justify-center gap-4 text-xs text-slate-500">
+          <div className="mt-4 flex items-center justify-center gap-4 text-xs text-slate-500">
             <div className="flex items-center gap-1.5">
               <Check className="h-3.5 w-3.5 text-emerald-500" />
               <span>SSL Secured</span>
