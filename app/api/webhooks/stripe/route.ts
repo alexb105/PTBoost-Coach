@@ -54,12 +54,30 @@ async function sendAdminNotification({
   // }
 }
 
+// GET endpoint to verify webhook is accessible
+export async function GET() {
+  return NextResponse.json({ 
+    status: 'ok', 
+    message: 'Stripe webhook endpoint is active',
+    timestamp: new Date().toISOString()
+  })
+}
+
 export async function POST(request: NextRequest) {
+  console.log('🔔 Webhook received at:', new Date().toISOString())
+  
   const body = await request.text()
   const signature = request.headers.get('stripe-signature')
 
+  console.log('📝 Webhook details:', {
+    hasBody: !!body,
+    bodyLength: body?.length,
+    hasSignature: !!signature,
+    webhookSecretSet: !!process.env.STRIPE_WEBHOOK_SECRET,
+  })
+
   if (!signature) {
-    console.error('No Stripe signature found')
+    console.error('❌ No Stripe signature found')
     return NextResponse.json(
       { error: 'No signature' },
       { status: 400 }
@@ -74,8 +92,9 @@ export async function POST(request: NextRequest) {
       signature,
       process.env.STRIPE_WEBHOOK_SECRET!
     )
+    console.log('✅ Webhook signature verified successfully')
   } catch (err: any) {
-    console.error('Webhook signature verification failed:', err.message)
+    console.error('❌ Webhook signature verification failed:', err.message)
     return NextResponse.json(
       { error: `Webhook Error: ${err.message}` },
       { status: 400 }
@@ -85,34 +104,47 @@ export async function POST(request: NextRequest) {
   const supabase = createServerClient()
 
   try {
-    console.log(`Processing Stripe webhook: ${event.type}`)
+    console.log(`🎯 Processing Stripe webhook: ${event.type}`)
 
     switch (event.type) {
       case 'checkout.session.completed': {
         const session = event.data.object as Stripe.Checkout.Session
         
+        console.log('📦 Checkout session completed:', {
+          mode: session.mode,
+          subscription: session.subscription,
+          metadata: session.metadata,
+          customer: session.customer,
+        })
+        
         if (session.mode === 'subscription' && session.subscription) {
           const trainerId = session.metadata?.trainer_id
           const tier = session.metadata?.tier as 'basic' | 'pro' | 'enterprise'
+
+          console.log('🔍 Processing subscription checkout:', { trainerId, tier })
 
           if (trainerId && tier) {
             const tierDetails = TIER_DETAILS[tier]
             
             // Update trainer subscription
-            const { error } = await supabase
+            const { data: updatedTrainer, error } = await supabase
               .from('trainers')
               .update({
                 subscription_tier: tier,
                 subscription_status: 'active',
                 stripe_subscription_id: session.subscription as string,
+                stripe_customer_id: session.customer as string,
                 max_clients: tierDetails.maxClients,
                 updated_at: new Date().toISOString(),
               })
               .eq('id', trainerId)
+              .select()
 
             if (error) {
-              console.error('Error updating trainer subscription:', error)
+              console.error('❌ Error updating trainer subscription:', error)
             } else {
+              console.log('✅ Trainer subscription updated successfully:', updatedTrainer)
+              
               // Get trainer email for notification
               const { data: trainer } = await supabase
                 .from('trainers')
@@ -128,6 +160,8 @@ export async function POST(request: NextRequest) {
                 })
               }
             }
+          } else {
+            console.error('❌ Missing trainerId or tier in checkout metadata:', session.metadata)
           }
         }
         break
