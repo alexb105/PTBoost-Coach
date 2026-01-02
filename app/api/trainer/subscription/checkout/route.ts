@@ -25,7 +25,8 @@ export async function POST(request: NextRequest) {
     }
 
     const priceId = STRIPE_PRICE_IDS[tier]
-    if (!priceId || priceId.startsWith('price_')) {
+    // Check if priceId is valid (must exist and start with 'price_' to be a real Stripe price ID)
+    if (!priceId || !priceId.startsWith('price_')) {
       return NextResponse.json(
         { error: 'Stripe price not configured for this tier' },
         { status: 400 }

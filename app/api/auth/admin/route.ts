@@ -17,6 +17,15 @@ export async function POST(request: NextRequest) {
     const adminEmail = process.env.ADMIN_EMAIL
     const adminPassword = process.env.ADMIN_PASSWORD
 
+    // Debug logging (remove in production)
+    console.log('Login attempt:', {
+      providedEmail: email,
+      expectedEmail: adminEmail,
+      emailMatch: email === adminEmail,
+      passwordProvided: !!password,
+      passwordSet: !!adminPassword,
+    })
+
     if (!adminEmail || !adminPassword) {
       return NextResponse.json(
         { error: 'Admin credentials not configured' },

@@ -17,10 +17,11 @@ async function sendAdminNotification({
   message: string
   trainerEmail: string
 }) {
-  const adminEmail = process.env.ADMIN_EMAIL
+  // Use ADMIN_NOTIFICATION_EMAIL if set, otherwise fall back to ADMIN_EMAIL
+  const adminEmail = process.env.ADMIN_NOTIFICATION_EMAIL || process.env.ADMIN_EMAIL
 
   if (!adminEmail) {
-    console.warn('ADMIN_EMAIL not set, skipping email notification')
+    console.warn('ADMIN_NOTIFICATION_EMAIL or ADMIN_EMAIL not set, skipping email notification')
     return
   }
 

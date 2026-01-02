@@ -6,6 +6,6 @@
 # NEXT_PUBLIC_* variables are intentionally bundled into the client bundle
 # .env.example is excluded as it only contains example/placeholder values
 [build.environment]
-  SECRETS_SCAN_OMIT_KEYS = "NEXT_PUBLIC_SUPABASE_ANON_KEY,NEXT_PUBLIC_SUPABASE_URL"
+  SECRETS_SCAN_OMIT_KEYS = "NEXT_PUBLIC_SUPABASE_ANON_KEY,NEXT_PUBLIC_SUPABASE_URL,NEXT_PUBLIC_APP_URL"
   SECRETS_SCAN_OMIT_PATHS = ".env.example"
 
