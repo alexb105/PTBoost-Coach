@@ -55,7 +55,7 @@ export function ChatInterface() {
   const [isUserAtBottom, setIsUserAtBottom] = useState(true)
   const previousMessagesLengthRef = useRef<number>(0)
   const [adminProfilePicture, setAdminProfilePicture] = useState<string | null>(null)
-  const [adminName, setAdminName] = useState<string | null>(null)
+  const [trainerFirstName, setTrainerFirstName] = useState<string | null>(null)
   const translatingRef = useRef<Set<string>>(new Set()) // Track messages currently being translated
   const translationQueueRef = useRef<Array<{ messageId: string; text: string }>>([])
   const isProcessingQueueRef = useRef<boolean>(false)
@@ -345,17 +345,49 @@ export function ChatInterface() {
 
   const fetchAdminProfilePicture = async () => {
     try {
-      const response = await fetch("/api/branding")
+      // First, get customer info to get trainer_id
+      const customerResponse = await fetch("/api/customer/info")
+      if (!customerResponse.ok) {
+        throw new Error("Failed to fetch customer info")
+      }
+      const customerData = await customerResponse.json()
+      const customer = customerData.customer
+
+      if (!customer) {
+        throw new Error("Customer not found")
+      }
+
+      // Get trainer_id from customer
+      const trainerIdResponse = await fetch(`/api/customer/trainer`)
+      if (!trainerIdResponse.ok) {
+        throw new Error("Failed to fetch trainer info")
+      }
+      const trainerIdData = await trainerIdResponse.json()
+      const trainerId = trainerIdData.trainer_id
+
+      if (!trainerId) {
+        // Fallback to default branding without trainer_id
+        const response = await fetch("/api/branding")
+        if (response.ok) {
+          const data = await response.json()
+          setAdminProfilePicture(data.admin_profile_picture_url || "/trainer-avatar.jpg")
+          setTrainerFirstName(null)
+        }
+        return
+      }
+
+      // Fetch branding with trainer_id
+      const response = await fetch(`/api/branding?trainer_id=${trainerId}`)
       if (response.ok) {
         const data = await response.json()
         setAdminProfilePicture(data.admin_profile_picture_url || "/trainer-avatar.jpg")
-        setAdminName(data.admin_name || null)
+        setTrainerFirstName(data.trainer_first_name || null)
       }
     } catch (error) {
       console.error("Failed to fetch admin profile picture:", error)
       // Fallback to default
       setAdminProfilePicture("/trainer-avatar.jpg")
-      setAdminName(null)
+      setTrainerFirstName(null)
     }
   }
 
@@ -751,7 +783,7 @@ export function ChatInterface() {
           </Avatar>
           <div>
             <h1 className="font-semibold text-foreground">
-              {adminName || "Coach"}
+              {trainerFirstName ? `Coach ${trainerFirstName}` : "Coach"}
             </h1>
             <p className="text-xs text-muted-foreground">{t("chat.online")}</p>
           </div>

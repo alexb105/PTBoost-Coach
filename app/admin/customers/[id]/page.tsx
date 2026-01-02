@@ -26,6 +26,7 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, ReferenceLine } from "rec
 import { WeekView, type Workout as WeekViewWorkout } from "@/components/week-view"
 import { ExerciseFormItem, type ExerciseFormData } from "@/components/exercise-form-item"
 import { WorkoutSummaryView } from "@/components/workout-summary-view"
+import { WorkoutDetailView, type WorkoutDetail } from "@/components/workout-detail-view"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Command, CommandInput, CommandList, CommandEmpty, CommandGroup, CommandItem } from "@/components/ui/command"
 import { Dumbbell, Activity } from "lucide-react"
@@ -139,11 +140,50 @@ export default function CustomerDetailPage() {
   const [editingWeightGoal, setEditingWeightGoal] = useState<any | null>(null)
   const [weightGoalForm, setWeightGoalForm] = useState({
     target_weight: "",
-    goal_type: "monthly" as "weekly" | "monthly",
+    goal_length: "" as "" | "1 week" | "2 weeks" | "1 month" | "2 months" | "3 months" | "6 months" | "1 year",
     start_date: new Date().toISOString().split('T')[0],
     end_date: "",
     notes: ""
   })
+
+  // Helper function to calculate end date based on goal length
+  const calculateEndDate = (goalLength: string, startDate: string): string => {
+    if (!goalLength || !startDate) return ""
+    
+    const start = new Date(startDate)
+    const end = new Date(start)
+    
+    if (goalLength === "1 week") {
+      end.setDate(end.getDate() + 7)
+    } else if (goalLength === "2 weeks") {
+      end.setDate(end.getDate() + 14)
+    } else if (goalLength === "1 month") {
+      end.setMonth(end.getMonth() + 1)
+    } else if (goalLength === "2 months") {
+      end.setMonth(end.getMonth() + 2)
+    } else if (goalLength === "3 months") {
+      end.setMonth(end.getMonth() + 3)
+    } else if (goalLength === "6 months") {
+      end.setMonth(end.getMonth() + 6)
+    } else if (goalLength === "1 year") {
+      end.setFullYear(end.getFullYear() + 1)
+    }
+    
+    return end.toISOString().split('T')[0]
+  }
+
+  // Helper function to convert goal_length to goal_type for API
+  const goalLengthToGoalType = (goalLength: string): "weekly" | "monthly" => {
+    if (goalLength === "1 week" || goalLength === "2 weeks") {
+      return "weekly"
+    }
+    return "monthly"
+  }
+
+  // Helper function to convert goal_type to goal_length for editing (defaults to "1 month" if unknown)
+  const goalTypeToGoalLength = (goalType: "weekly" | "monthly"): typeof weightGoalForm.goal_length => {
+    return goalType === "weekly" ? "1 week" : "1 month"
+  }
   const [isWeightEntryDialogOpen, setIsWeightEntryDialogOpen] = useState(false)
   const [editingWeightEntry, setEditingWeightEntry] = useState<any | null>(null)
   const [weightEntryForm, setWeightEntryForm] = useState({
@@ -197,6 +237,7 @@ export default function CustomerDetailPage() {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [selectedDate, setSelectedDate] = useState<Date | null>(null)
   const [summaryWorkout, setSummaryWorkout] = useState<Workout | null>(null)
+  const [viewingWorkoutDetail, setViewingWorkoutDetail] = useState<WorkoutDetail | null>(null)
   const [newWorkout, setNewWorkout] = useState<{
     title: string
     description: string
@@ -768,10 +809,10 @@ export default function CustomerDetailPage() {
     try {
       const response = await fetch("/api/auth/admin/check")
       if (!response.ok) {
-        router.push("/auth/admin")
+        router.push("/auth/trainer")
       }
     } catch (error) {
-      router.push("/auth/admin")
+      router.push("/auth/trainer")
     }
   }
 
@@ -1387,6 +1428,12 @@ export default function CustomerDetailPage() {
     setNewWorkout({ ...newWorkout, exercises: updatedExercises })
   }
 
+  const updateExerciseMultiple = (index: number, updates: Partial<ExerciseFormData>) => {
+    const updatedExercises = [...newWorkout.exercises]
+    updatedExercises[index] = { ...updatedExercises[index], ...updates }
+    setNewWorkout({ ...newWorkout, exercises: updatedExercises })
+  }
+
   const handleSaveWorkout = async (e: React.FormEvent) => {
     e.preventDefault()
     try {
@@ -1485,6 +1532,16 @@ export default function CustomerDetailPage() {
       toast.success("Workout deleted successfully")
       setIsDeleteDialogOpen(false)
       setDeleteWorkoutId(null)
+      // Close the workout edit dialog and clear editing state
+      setIsWorkoutDialogOpen(false)
+      setEditingWorkout(null)
+      setSelectedDate(null)
+      setNewWorkout({
+        title: "",
+        description: "",
+        date: new Date().toISOString().split("T")[0],
+        exercises: [{ name: "", sets: "", reps: "", type: "reps" as const, weight: "", notes: "" }],
+      })
       fetchCustomerData()
     } catch (error: any) {
       toast.error(error.message || "Failed to delete workout")
@@ -1730,7 +1787,7 @@ export default function CustomerDetailPage() {
       <header className="border-b bg-card/50 backdrop-blur-xl">
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center gap-4">
-            <Button variant="ghost" size="icon" onClick={() => router.push("/admin")}>
+            <Button variant="ghost" size="icon" onClick={() => router.push("/trainer")}>
               <ArrowLeft className="h-4 w-4" />
             </Button>
             <div className="flex items-center gap-3">
@@ -1780,12 +1837,40 @@ export default function CustomerDetailPage() {
         <WorkoutSummaryView
           workout={summaryWorkout}
           onBack={() => setSummaryWorkout(null)}
+          customerId={customerId}
         />
         </main>
       )}
 
+      {/* Workout Detail View (Client View) */}
+      {viewingWorkoutDetail && (
+        <main className="min-h-screen" style={{ paddingBottom: 'calc(5rem + env(safe-area-inset-bottom, 0px))' }}>
+          <WorkoutDetailView
+            workout={viewingWorkoutDetail}
+            onBack={() => setViewingWorkoutDetail(null)}
+            onComplete={async () => {
+              // Trainers cannot complete workouts for clients
+              toast.info("Trainers cannot complete workouts. This action is only available to clients.")
+            }}
+            onUncomplete={async () => {
+              // Trainers cannot uncomplete workouts for clients
+              toast.info("Trainers cannot uncomplete workouts. This action is only available to clients.")
+            }}
+            onExerciseComplete={async () => {
+              // Trainers cannot complete exercises for clients
+              toast.info("Trainers cannot complete exercises. This action is only available to clients.")
+            }}
+            onExerciseUncomplete={async () => {
+              // Trainers cannot uncomplete exercises for clients
+              toast.info("Trainers cannot uncomplete exercises. This action is only available to clients.")
+            }}
+            customerId={customerId}
+          />
+        </main>
+      )}
+
       {/* Main Content */}
-      {!summaryWorkout && (
+      {!summaryWorkout && !viewingWorkoutDetail && (
         <main className="container mx-auto px-4 py-8">
           <Tabs 
             value={activeTab} 
@@ -1844,12 +1929,40 @@ export default function CustomerDetailPage() {
                           : `${editingWorkout ? "Edit" : "Create"} a workout plan for this customer`}
                       </DialogDescription>
                     </div>
-                    {editingWorkout?.completed && (
-                      <Badge className="bg-green-500/20 text-green-500 border-green-500/30 px-3 py-1">
-                        <CheckCircle2 className="h-3.5 w-3.5 mr-1.5" />
-                        Completed
-                      </Badge>
-                    )}
+                    <div className="flex items-center gap-2">
+                      {editingWorkout?.completed && (
+                        <Badge className="bg-green-500/20 text-green-500 border-green-500/30 px-3 py-1">
+                          <CheckCircle2 className="h-3.5 w-3.5 mr-1.5" />
+                          Completed
+                        </Badge>
+                      )}
+                      {editingWorkout && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            // Convert workout to WorkoutDetail format
+                            const workoutDetail: WorkoutDetail = {
+                              id: editingWorkout.id,
+                              title: editingWorkout.title,
+                              description: editingWorkout.description || undefined,
+                              date: editingWorkout.date,
+                              exercises: editingWorkout.exercises || [],
+                              completed: editingWorkout.completed || false,
+                              completed_at: editingWorkout.completed_at || undefined,
+                              exercise_completions: editingWorkout.exercise_completions || [],
+                            }
+                            setViewingWorkoutDetail(workoutDetail)
+                            setIsWorkoutDialogOpen(false)
+                          }}
+                          className="gap-2"
+                        >
+                          <Eye className="h-4 w-4" />
+                          View as Client
+                        </Button>
+                      )}
+                    </div>
                   </div>
                 </DialogHeader>
                 <form onSubmit={handleSaveWorkout} className="space-y-6">
@@ -1941,6 +2054,10 @@ export default function CustomerDetailPage() {
                                 onUpdate={(_, field, value) => {
                                   // Use originalIndex directly instead of mapping back
                                   updateExercise(originalIndex, field, value)
+                                }}
+                                onUpdateMultiple={(_, updates) => {
+                                  // Use originalIndex directly for batch updates
+                                  updateExerciseMultiple(originalIndex, updates)
                                 }}
                                 onRemove={() => {
                                   // Use originalIndex directly instead of mapping back
@@ -2849,7 +2966,7 @@ export default function CustomerDetailPage() {
                         setEditingWeightGoal(null)
                         setWeightGoalForm({
                           target_weight: "",
-                      goal_type: "monthly",
+                      goal_length: "",
                           start_date: new Date().toISOString().split('T')[0],
                           end_date: "",
                           notes: ""
@@ -2925,7 +3042,7 @@ export default function CustomerDetailPage() {
                                 setEditingWeightGoal(goal)
                                 setWeightGoalForm({
                                   target_weight: goal.target_weight.toString(),
-                                  goal_type: goal.goal_type,
+                                  goal_length: goalTypeToGoalLength(goal.goal_type),
                                   start_date: goal.start_date,
                                   end_date: goal.end_date,
                                   notes: goal.notes || ""
@@ -3695,7 +3812,7 @@ export default function CustomerDetailPage() {
             </DialogHeader>
             <form onSubmit={async (e) => {
               e.preventDefault()
-              if (!weightGoalForm.target_weight || !weightGoalForm.start_date || !weightGoalForm.end_date) {
+              if (!weightGoalForm.target_weight || !weightGoalForm.goal_length || !weightGoalForm.start_date || !weightGoalForm.end_date) {
                 toast.error("Please fill in all required fields")
                 return
               }
@@ -3703,18 +3820,19 @@ export default function CustomerDetailPage() {
               try {
                 const url = `/api/admin/customers/${customerId}/weight-goals`
                 const method = editingWeightGoal ? 'PUT' : 'POST'
+                const goalType = goalLengthToGoalType(weightGoalForm.goal_length)
                 const body = editingWeightGoal
                   ? {
                       goal_id: editingWeightGoal.id,
                       target_weight: weightGoalForm.target_weight,
-                      goal_type: weightGoalForm.goal_type,
+                      goal_type: goalType,
                       start_date: weightGoalForm.start_date,
                       end_date: weightGoalForm.end_date,
                       notes: weightGoalForm.notes || null,
                     }
                   : {
                       target_weight: weightGoalForm.target_weight,
-                      goal_type: weightGoalForm.goal_type,
+                      goal_type: goalType,
                       start_date: weightGoalForm.start_date,
                       end_date: weightGoalForm.end_date,
                       notes: weightGoalForm.notes || null,
@@ -3732,7 +3850,7 @@ export default function CustomerDetailPage() {
                   setEditingWeightGoal(null)
                   setWeightGoalForm({
                     target_weight: "",
-                    goal_type: "monthly",
+                    goal_length: "",
                     start_date: new Date().toISOString().split('T')[0],
                     end_date: "",
                     notes: ""
@@ -3768,17 +3886,31 @@ export default function CustomerDetailPage() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="weight-goal-type">Goal Type *</Label>
+                <Label htmlFor="weight-goal-length">Goal Length *</Label>
                 <Select
-                  value={weightGoalForm.goal_type}
-                  onValueChange={(value: "weekly" | "monthly") => setWeightGoalForm({ ...weightGoalForm, goal_type: value })}
+                  value={weightGoalForm.goal_length}
+                  onValueChange={(value) => {
+                    const today = new Date().toISOString().split('T')[0]
+                    const endDate = calculateEndDate(value, today)
+                    setWeightGoalForm({
+                      ...weightGoalForm,
+                      goal_length: value as typeof weightGoalForm.goal_length,
+                      start_date: today,
+                      end_date: endDate
+                    })
+                  }}
                 >
                   <SelectTrigger className="bg-background">
-                    <SelectValue />
+                    <SelectValue placeholder="Select goal length" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="weekly">Weekly</SelectItem>
-                    <SelectItem value="monthly">Monthly</SelectItem>
+                    <SelectItem value="1 week">1 Week</SelectItem>
+                    <SelectItem value="2 weeks">2 Weeks</SelectItem>
+                    <SelectItem value="1 month">1 Month</SelectItem>
+                    <SelectItem value="2 months">2 Months</SelectItem>
+                    <SelectItem value="3 months">3 Months</SelectItem>
+                    <SelectItem value="6 months">6 Months</SelectItem>
+                    <SelectItem value="1 year">1 Year</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -3789,7 +3921,17 @@ export default function CustomerDetailPage() {
                     id="weight-goal-start"
                     type="date"
                     value={weightGoalForm.start_date}
-                    onChange={(e) => setWeightGoalForm({ ...weightGoalForm, start_date: e.target.value })}
+                    onChange={(e) => {
+                      const newStartDate = e.target.value
+                      const endDate = weightGoalForm.goal_length 
+                        ? calculateEndDate(weightGoalForm.goal_length, newStartDate)
+                        : weightGoalForm.end_date
+                      setWeightGoalForm({ 
+                        ...weightGoalForm, 
+                        start_date: newStartDate,
+                        end_date: endDate
+                      })
+                    }}
                     required
                     className="bg-background"
                   />
@@ -3826,7 +3968,7 @@ export default function CustomerDetailPage() {
                     setEditingWeightGoal(null)
                     setWeightGoalForm({
                       target_weight: "",
-                      goal_type: "monthly",
+                      goal_length: "",
                       start_date: new Date().toISOString().split('T')[0],
                       end_date: "",
                       notes: ""

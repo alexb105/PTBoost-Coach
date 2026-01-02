@@ -50,11 +50,26 @@ export async function GET(
 
     const supabase = createServerClient()
     
-    // First, try to find the exercise in the global exercises table
+    // Get customer's trainer_id
+    const { data: customer } = await supabase
+      .from('customers')
+      .select('trainer_id')
+      .eq('id', session.userId)
+      .single()
+
+    if (!customer || !customer.trainer_id) {
+      return NextResponse.json(
+        { error: 'Customer trainer not found' },
+        { status: 404 }
+      )
+    }
+    
+    // Find the exercise in the trainer's exercises
     const { data: exercise } = await supabase
       .from('exercises')
       .select('id, display_name, image_url, video_url')
       .eq('name', normalizedExerciseName)
+      .eq('trainer_id', customer.trainer_id)
       .single()
 
     // Get the PB for this exercise (prefer exercise_id if available, fallback to exercise_name)

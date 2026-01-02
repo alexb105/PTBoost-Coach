@@ -6,3 +6,6 @@ ADD COLUMN IF NOT EXISTS is_rest_day BOOLEAN DEFAULT FALSE;
 CREATE INDEX IF NOT EXISTS idx_workouts_is_rest_day ON workouts(is_rest_day);
 CREATE INDEX IF NOT EXISTS idx_workouts_customer_rest_day ON workouts(customer_id, is_rest_day);
 
+
+
+

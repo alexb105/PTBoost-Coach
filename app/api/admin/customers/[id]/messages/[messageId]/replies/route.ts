@@ -1,30 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@/lib/supabase'
-
-async function checkAdminSession(request: NextRequest) {
-  const sessionToken = request.cookies.get('admin_session')
-  
-  if (!sessionToken) {
-    return null
-  }
-
-  try {
-    const sessionData = JSON.parse(
-      Buffer.from(sessionToken.value, 'base64').toString()
-    )
-
-    const sessionAge = Date.now() - sessionData.timestamp
-    const maxAge = 86400000 // 24 hours
-
-    if (sessionAge > maxAge) {
-      return null
-    }
-
-    return sessionData
-  } catch {
-    return null
-  }
-}
+import { checkAdminSession } from '@/lib/admin-auth'
 
 export async function GET(
   request: NextRequest,

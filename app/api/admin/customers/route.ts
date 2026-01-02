@@ -1,33 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@/lib/supabase'
+import { checkAdminSession, canAddClient } from '@/lib/admin-auth'
 
-// Check admin session helper
-async function checkAdminSession(request: NextRequest) {
-  const sessionToken = request.cookies.get('admin_session')
-  
-  if (!sessionToken) {
-    return null
-  }
-
-  try {
-    const sessionData = JSON.parse(
-      Buffer.from(sessionToken.value, 'base64').toString()
-    )
-
-    const sessionAge = Date.now() - sessionData.timestamp
-    const maxAge = 86400000 // 24 hours
-
-    if (sessionAge > maxAge) {
-      return null
-    }
-
-    return sessionData
-  } catch {
-    return null
-  }
-}
-
-// GET - Fetch all customers
+// GET - Fetch all customers for the trainer
 export async function GET(request: NextRequest) {
   try {
     const session = await checkAdminSession(request)
@@ -40,10 +15,19 @@ export async function GET(request: NextRequest) {
     }
 
     const supabase = createServerClient()
-    const { data, error } = await supabase
+    
+    // Build query - filter by trainer_id if available
+    let query = supabase
       .from('customers')
       .select('*')
       .order('created_at', { ascending: false })
+    
+    // Filter by trainer_id for multi-tenant isolation
+    if (session.trainerId) {
+      query = query.eq('trainer_id', session.trainerId)
+    }
+
+    const { data, error } = await query
 
     if (error) {
       throw error
@@ -68,6 +52,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }
+      )
+    }
+
+    // Check if trainer can add more clients
+    const { canAdd, reason } = await canAddClient(session)
+    if (!canAdd) {
+      return NextResponse.json(
+        { error: reason || 'Client limit reached' },
+        { status: 403 }
       )
     }
 
@@ -105,7 +98,7 @@ export async function POST(request: NextRequest) {
       throw authError
     }
 
-    // Create customer record with one_time_password_used flag
+    // Create customer record with trainer_id for multi-tenant isolation
     const { data: customerData, error: customerError } = await supabase
       .from('customers')
       .insert({
@@ -114,6 +107,7 @@ export async function POST(request: NextRequest) {
         full_name: full_name || null,
         phone: phone || null,
         one_time_password_used: false,
+        trainer_id: session.trainerId, // Link customer to trainer
       })
       .select()
       .single()
@@ -140,4 +134,3 @@ export async function POST(request: NextRequest) {
     )
   }
 }
-

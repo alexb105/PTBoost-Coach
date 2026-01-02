@@ -2,7 +2,7 @@
 
 import type React from "react"
 import { useState, useEffect } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, usePathname } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -21,11 +21,13 @@ interface Customer {
   full_name?: string
   phone?: string
   created_at?: string
+  updated_at?: string
   one_time_password_used?: boolean
 }
 
 export default function AdminPortalPage() {
   const router = useRouter()
+  const pathname = usePathname()
   const { t } = useLanguage()
   const [customers, setCustomers] = useState<Customer[]>([])
   const [loading, setLoading] = useState(true)
@@ -49,10 +51,10 @@ export default function AdminPortalPage() {
     try {
       const response = await fetch("/api/auth/admin/check")
       if (!response.ok) {
-        router.push("/auth/admin")
+        router.push("/auth/trainer")
       }
     } catch (error) {
-      router.push("/auth/admin")
+      router.push("/auth/trainer")
     }
   }
 
@@ -241,7 +243,7 @@ export default function AdminPortalPage() {
                     <TableRow 
                       key={customer.id}
                       className="cursor-pointer hover:bg-muted/50 transition-colors"
-                      onClick={() => router.push(`/admin/customers/${customer.id}`)}
+                      onClick={() => router.push(`/trainer/customers/${customer.id}`)}
                     >
                       <TableCell className="font-medium">
                         {customer.full_name || "N/A"}
@@ -263,9 +265,15 @@ export default function AdminPortalPage() {
                         )}
                       </TableCell>
                       <TableCell className="text-muted-foreground">
-                        {customer.created_at
-                          ? new Date(customer.created_at).toLocaleDateString()
-                          : "N/A"}
+                        {customer.one_time_password_used ? (
+                          customer.updated_at
+                            ? `Joined ${new Date(customer.updated_at).toLocaleDateString()}`
+                            : customer.created_at
+                            ? `Joined ${new Date(customer.created_at).toLocaleDateString()}`
+                            : "Joined"
+                        ) : (
+                          <span className="text-amber-500 font-medium">Pending</span>
+                        )}
                       </TableCell>
                     </TableRow>
                   ))}

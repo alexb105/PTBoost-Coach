@@ -1,31 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@/lib/supabase'
 import { extractAndNormalizeExerciseName, extractExerciseName, normalizeExerciseName } from '@/lib/exercise-utils'
-
-async function checkAdminSession(request: NextRequest) {
-  const sessionToken = request.cookies.get('admin_session')
-  
-  if (!sessionToken) {
-    return null
-  }
-
-  try {
-    const sessionData = JSON.parse(
-      Buffer.from(sessionToken.value, 'base64').toString()
-    )
-
-    const sessionAge = Date.now() - sessionData.timestamp
-    const maxAge = 86400000 // 24 hours
-
-    if (sessionAge > maxAge) {
-      return null
-    }
-
-    return sessionData
-  } catch {
-    return null
-  }
-}
+import { checkAdminSession } from '@/lib/admin-auth'
 
 export async function POST(
   request: NextRequest,
@@ -152,34 +128,41 @@ export async function POST(
     // Wrap in try-catch so PB errors don't fail the exercise completion
     if (bestSet && (bestSet.reps || bestSet.weight || bestSet.seconds) && normalizedExerciseName) {
       try {
-        // Get or create exercise in global exercises table
+        // Get or create exercise in trainer's exercises
         let exerciseId: string | null = null
         
-        // Try to find existing exercise
-        const { data: existingExercise, error: findError } = await supabase
-          .from('exercises')
-          .select('id')
-          .eq('name', normalizedExerciseName)
-          .single()
-
-        if (existingExercise && !findError) {
-          exerciseId = existingExercise.id
-        } else if (findError?.code === 'PGRST116') {
-          // Exercise doesn't exist, create it
-          const { data: newExercise, error: exerciseError } = await supabase
+        if (!session.trainerId) {
+          console.warn('No trainer_id in session, skipping exercise lookup')
+        } else {
+          // Try to find existing exercise for this trainer
+          const { data: existingExercise, error: findError } = await supabase
             .from('exercises')
-            .insert({
-              name: normalizedExerciseName,
-              display_name: displayExerciseName || normalizedExerciseName.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' '),
-            })
             .select('id')
+            .eq('name', normalizedExerciseName)
+            .eq('trainer_id', session.trainerId)
             .single()
 
-          if (exerciseError) {
-            console.error('Error creating exercise:', exerciseError)
-            // Continue without exercise_id if creation fails
-          } else if (newExercise) {
-            exerciseId = newExercise.id
+          if (existingExercise && !findError) {
+            exerciseId = existingExercise.id
+          } else if (findError?.code === 'PGRST116') {
+            // Exercise doesn't exist, create it for this trainer
+            const { data: newExercise, error: exerciseError } = await supabase
+              .from('exercises')
+              .insert({
+                name: normalizedExerciseName,
+                display_name: displayExerciseName || normalizedExerciseName.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' '),
+                trainer_id: session.trainerId,
+                exercise_type: 'sets', // Default to sets, can be updated later
+              })
+              .select('id')
+              .single()
+
+            if (exerciseError) {
+              console.error('Error creating exercise:', exerciseError)
+              // Continue without exercise_id if creation fails
+            } else if (newExercise) {
+              exerciseId = newExercise.id
+            }
           }
         }
 

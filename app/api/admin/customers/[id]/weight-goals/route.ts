@@ -1,28 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@/lib/supabase'
-
-async function checkAdminSession(request: NextRequest) {
-  try {
-    const sessionCookie = request.cookies.get('admin_session')
-    if (!sessionCookie) {
-      return null
-    }
-
-    const sessionData = JSON.parse(
-      Buffer.from(sessionCookie.value, 'base64').toString('utf-8')
-    )
-
-    // Verify session is not expired (24 hours)
-    const sessionAge = Date.now() - sessionData.timestamp
-    if (sessionAge > 86400000) {
-      return null
-    }
-
-    return sessionData
-  } catch {
-    return null
-  }
-}
+import { checkAdminSession } from '@/lib/admin-auth'
 
 // GET - Fetch weight goals for a customer
 export async function GET(

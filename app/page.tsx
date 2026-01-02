@@ -64,16 +64,18 @@ export default function SessionsPage() {
         throw new Error("Failed to mark workout as complete")
       }
 
+      const data = await response.json()
+      
       // Refresh workouts to get updated completion status
       await fetchWorkouts()
       
-      // Update selected workout if it's the one being completed
-      // The view will automatically switch to summary view since completed is now true
+      // Update selected workout with the data returned from API (includes all fields)
       if (selectedWorkout && selectedWorkout.id === workoutId) {
         setSelectedWorkout({
           ...selectedWorkout,
+          ...data.workout,
           completed: true,
-          completed_at: new Date().toISOString(),
+          completed_at: data.workout.completed_at || new Date().toISOString(),
         })
       }
     } catch (error) {
@@ -223,11 +225,6 @@ export default function SessionsPage() {
           onUncomplete={handleUncompleteWorkout}
           onExerciseComplete={handleExerciseComplete}
           onExerciseUncomplete={handleExerciseUncomplete}
-          onWorkoutUpdate={(updatedWorkout) => {
-            setSelectedWorkout(updatedWorkout)
-            // Also update in workouts list
-            setWorkouts(prev => prev.map(w => w.id === updatedWorkout.id ? updatedWorkout : w))
-          }}
         />
       </main>
     )

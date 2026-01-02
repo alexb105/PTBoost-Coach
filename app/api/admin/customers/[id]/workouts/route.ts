@@ -1,29 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@/lib/supabase'
+import { checkAdminSession } from '@/lib/admin-auth'
 
-async function checkAdminSession(request: NextRequest) {
-  const sessionToken = request.cookies.get('admin_session')
+// Helper to verify customer belongs to trainer
+async function verifyCustomerAccess(supabase: any, customerId: string, trainerId: string | null) {
+  if (!trainerId) return true // Legacy admin has access to all
   
-  if (!sessionToken) {
-    return null
-  }
-
-  try {
-    const sessionData = JSON.parse(
-      Buffer.from(sessionToken.value, 'base64').toString()
-    )
-
-    const sessionAge = Date.now() - sessionData.timestamp
-    const maxAge = 86400000
-
-    if (sessionAge > maxAge) {
-      return null
-    }
-
-    return sessionData
-  } catch {
-    return null
-  }
+  const { data, error } = await supabase
+    .from('customers')
+    .select('id')
+    .eq('id', customerId)
+    .eq('trainer_id', trainerId)
+    .single()
+  
+  return !error && !!data
 }
 
 export async function GET(
@@ -42,6 +32,16 @@ export async function GET(
 
     const { id } = await params
     const supabase = createServerClient()
+    
+    // Verify customer belongs to trainer
+    const hasAccess = await verifyCustomerAccess(supabase, id, session.trainerId)
+    if (!hasAccess) {
+      return NextResponse.json(
+        { error: 'Customer not found' },
+        { status: 404 }
+      )
+    }
+    
     const { data, error } = await supabase
       .from('workouts')
       .select('*')
@@ -87,10 +87,21 @@ export async function POST(
     }
 
     const supabase = createServerClient()
+    
+    // Verify customer belongs to trainer
+    const hasAccess = await verifyCustomerAccess(supabase, id, session.trainerId)
+    if (!hasAccess) {
+      return NextResponse.json(
+        { error: 'Customer not found' },
+        { status: 404 }
+      )
+    }
+    
     const { data, error } = await supabase
       .from('workouts')
       .insert({
         customer_id: id,
+        trainer_id: session.trainerId, // Link workout to trainer
         title,
         description: description || null,
         date,
@@ -116,4 +127,3 @@ export async function POST(
     )
   }
 }
-

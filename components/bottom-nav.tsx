@@ -12,7 +12,7 @@ export function BottomNav() {
   const pathname = usePathname()
   const { t } = useLanguage()
   const { hasUnread, markAsSeen } = useMessageNotifications({ 
-    enabled: !pathname?.startsWith("/admin") && !pathname?.startsWith("/auth") 
+    enabled: !pathname?.startsWith("/trainer") && !pathname?.startsWith("/auth") && !pathname?.startsWith("/platform-admin") 
   })
 
   const navItems = [
@@ -22,8 +22,8 @@ export function BottomNav() {
     { href: "/nutrition", icon: Apple, label: t("navigation.nutrition") },
   ]
 
-  // Don't show client nav on admin or auth pages
-  if (pathname?.startsWith("/admin") || pathname?.startsWith("/auth")) {
+  // Don't show client nav on trainer, platform admin, or auth pages
+  if (pathname?.startsWith("/trainer") || pathname?.startsWith("/auth") || pathname?.startsWith("/platform-admin")) {
     return null
   }
 

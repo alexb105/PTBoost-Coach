@@ -1,32 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@/lib/supabase'
+import { checkAdminSession } from '@/lib/admin-auth'
 
-async function checkAdminSession(request: NextRequest) {
-  const sessionToken = request.cookies.get('admin_session')
-  
-  if (!sessionToken) {
-    return null
-  }
-
-  try {
-    const sessionData = JSON.parse(
-      Buffer.from(sessionToken.value, 'base64').toString()
-    )
-
-    const sessionAge = Date.now() - sessionData.timestamp
-    const maxAge = 86400000
-
-    if (sessionAge > maxAge) {
-      return null
-    }
-
-    return sessionData
-  } catch {
-    return null
-  }
-}
-
-// GET - Fetch all templates
+// GET - Fetch all templates for the trainer
 export async function GET(request: NextRequest) {
   try {
     const session = await checkAdminSession(request)
@@ -39,10 +15,19 @@ export async function GET(request: NextRequest) {
     }
 
     const supabase = createServerClient()
-    const { data, error } = await supabase
+    
+    // Build query with trainer_id filter
+    let query = supabase
       .from('workout_templates')
       .select('*')
       .order('created_at', { ascending: false })
+    
+    // Filter by trainer_id for multi-tenant isolation
+    if (session.trainerId) {
+      query = query.eq('trainer_id', session.trainerId)
+    }
+
+    const { data, error } = await query
 
     if (error) {
       throw error
@@ -86,6 +71,7 @@ export async function POST(request: NextRequest) {
         title,
         description: description || null,
         exercises: exercises || [],
+        trainer_id: session.trainerId, // Link template to trainer
       })
       .select()
       .single()
@@ -106,4 +92,3 @@ export async function POST(request: NextRequest) {
     )
   }
 }
-

@@ -1,43 +1,27 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { checkAdminSession } from '@/lib/admin-auth'
 
 export async function GET(request: NextRequest) {
   try {
-    const sessionToken = request.cookies.get('admin_session')
+    const session = await checkAdminSession(request)
 
-    if (!sessionToken) {
+    if (!session) {
       return NextResponse.json(
         { authenticated: false },
         { status: 401 }
       )
     }
 
-    // Verify session token (simple check - in production, verify JWT signature)
-    try {
-      const sessionData = JSON.parse(
-        Buffer.from(sessionToken.value, 'base64').toString()
-      )
-
-      // Check if session is expired (24 hours)
-      const sessionAge = Date.now() - sessionData.timestamp
-      const maxAge = 86400000 // 24 hours in milliseconds
-
-      if (sessionAge > maxAge) {
-        return NextResponse.json(
-          { authenticated: false },
-          { status: 401 }
-        )
-      }
-
-      return NextResponse.json(
-        { authenticated: true, email: sessionData.email },
-        { status: 200 }
-      )
-    } catch (error) {
-      return NextResponse.json(
-        { authenticated: false },
-        { status: 401 }
-      )
-    }
+    return NextResponse.json(
+      { 
+        authenticated: true, 
+        email: session.email,
+        role: session.role,
+        isTrainer: !!session.trainerId,
+        isPlatformAdmin: session.role === 'admin' && !session.trainerId
+      },
+      { status: 200 }
+    )
   } catch (error) {
     return NextResponse.json(
       { authenticated: false },
@@ -45,4 +29,3 @@ export async function GET(request: NextRequest) {
     )
   }
 }
-

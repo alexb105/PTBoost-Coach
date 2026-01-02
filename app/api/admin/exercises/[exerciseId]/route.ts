@@ -1,32 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@/lib/supabase'
 import { normalizeExerciseName } from '@/lib/exercise-utils'
-
-// Helper to check admin session
-async function checkAdminSession(request: NextRequest) {
-  const adminSession = request.cookies.get('admin_session')
-  
-  if (!adminSession) {
-    return null
-  }
-
-  try {
-    const sessionData = JSON.parse(
-      Buffer.from(adminSession.value, 'base64').toString()
-    )
-
-    const sessionAge = Date.now() - sessionData.timestamp
-    const maxAge = 86400000 // 24 hours
-
-    if (sessionAge > maxAge) {
-      return null
-    }
-
-    return sessionData
-  } catch {
-    return null
-  }
-}
+import { checkAdminSession } from '@/lib/admin-auth'
 
 // PUT - Update an exercise
 export async function PUT(
@@ -78,11 +53,34 @@ export async function PUT(
     const normalizedName = normalizeExerciseName(name)
     const displayName = display_name || name.trim()
 
-    // Check if another exercise with this name exists
+    // Ensure trainer_id is set
+    if (!session.trainerId) {
+      return NextResponse.json(
+        { error: 'Trainer ID required' },
+        { status: 400 }
+      )
+    }
+
+    // Verify the exercise belongs to this trainer
+    const { data: exerciseCheck } = await supabase
+      .from('exercises')
+      .select('trainer_id')
+      .eq('id', exerciseId)
+      .single()
+
+    if (!exerciseCheck || exerciseCheck.trainer_id !== session.trainerId) {
+      return NextResponse.json(
+        { error: 'Exercise not found or access denied' },
+        { status: 404 }
+      )
+    }
+
+    // Check if another exercise with this name exists for this trainer
     const { data: existing } = await supabase
       .from('exercises')
       .select('id')
       .eq('name', normalizedName)
+      .eq('trainer_id', session.trainerId)
       .neq('id', exerciseId)
       .single()
 
@@ -213,14 +211,35 @@ export async function DELETE(
 
     const { exerciseId } = await params
 
+    if (!session.trainerId) {
+      return NextResponse.json(
+        { error: 'Trainer ID required' },
+        { status: 400 }
+      )
+    }
+
     const supabase = createServerClient()
     
-    // Get exercise name before deletion (for cleaning up PBs that use exercise_name)
+    // Verify the exercise belongs to this trainer and get exercise name
     const { data: exercise, error: exerciseError } = await supabase
       .from('exercises')
-      .select('name')
+      .select('name, trainer_id')
       .eq('id', exerciseId)
       .single()
+
+    if (exerciseError || !exercise) {
+      return NextResponse.json(
+        { error: 'Exercise not found' },
+        { status: 404 }
+      )
+    }
+
+    if (exercise.trainer_id !== session.trainerId) {
+      return NextResponse.json(
+        { error: 'Access denied' },
+        { status: 403 }
+      )
+    }
 
     if (exerciseError) {
       throw exerciseError

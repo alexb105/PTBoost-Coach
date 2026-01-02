@@ -1,34 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@/lib/supabase'
 import { normalizeExerciseName } from '@/lib/exercise-utils'
+import { checkAdminSession } from '@/lib/admin-auth'
 
-// Helper to check admin session
-async function checkAdminSession(request: NextRequest) {
-  const adminSession = request.cookies.get('admin_session')
-  
-  if (!adminSession) {
-    return null
-  }
-
-  try {
-    const sessionData = JSON.parse(
-      Buffer.from(adminSession.value, 'base64').toString()
-    )
-
-    const sessionAge = Date.now() - sessionData.timestamp
-    const maxAge = 86400000 // 24 hours
-
-    if (sessionAge > maxAge) {
-      return null
-    }
-
-    return sessionData
-  } catch {
-    return null
-  }
-}
-
-// GET - Get all exercises
+// GET - Get trainer's own exercises only (no global exercises)
 export async function GET(request: NextRequest) {
   try {
     const session = await checkAdminSession(request)
@@ -40,11 +15,21 @@ export async function GET(request: NextRequest) {
       )
     }
 
+    // Trainers must have a trainerId
+    if (!session.trainerId) {
+      return NextResponse.json(
+        { error: 'Trainer ID required' },
+        { status: 400 }
+      )
+    }
+
     const supabase = createServerClient()
     
+    // Only get exercises for this specific trainer
     const { data: exercises, error } = await supabase
       .from('exercises')
       .select('*')
+      .eq('trainer_id', session.trainerId)
       .order('display_name', { ascending: true })
 
     if (error) {
@@ -64,7 +49,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST - Create a new exercise
+// POST - Create a new exercise (trainer-specific)
 export async function POST(request: NextRequest) {
   try {
     const session = await checkAdminSession(request)
@@ -99,8 +84,20 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Check if trainer can add more exercises
+    if (session.trainerId) {
+      const { canAddExercise } = await import('@/lib/admin-auth')
+      const { canAdd, reason } = await canAddExercise(session)
+      
+      if (!canAdd) {
+        return NextResponse.json(
+          { error: reason || 'Exercise limit reached' },
+          { status: 403 }
+        )
+      }
+    }
+
     // Ensure exercise_type is valid, default to 'sets' if missing or invalid
-    // Normalize by trimming and lowercasing to handle any edge cases
     const normalizedType = exercise_type ? String(exercise_type).trim().toLowerCase() : 'sets'
     const validExerciseType = ['cardio', 'sets'].includes(normalizedType) ? normalizedType : 'sets'
 
@@ -110,11 +107,19 @@ export async function POST(request: NextRequest) {
     const normalizedName = normalizeExerciseName(name)
     const displayName = display_name || name.trim()
 
-    // Check if exercise already exists
+    // Check if exercise already exists for this trainer only
+    if (!session.trainerId) {
+      return NextResponse.json(
+        { error: 'Trainer ID required' },
+        { status: 400 }
+      )
+    }
+
     const { data: existing } = await supabase
       .from('exercises')
       .select('id')
       .eq('name', normalizedName)
+      .eq('trainer_id', session.trainerId)
       .single()
 
     if (existing) {
@@ -124,11 +129,20 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Build insert object - explicitly set exercise_type to ensure it's never null/undefined
+    // Ensure trainer_id is set (required for all exercises)
+    if (!session.trainerId) {
+      return NextResponse.json(
+        { error: 'Trainer ID required' },
+        { status: 400 }
+      )
+    }
+
+    // Build insert object
     const insertData: any = {
       name: normalizedName,
       display_name: displayName,
       exercise_type: validExerciseType,
+      trainer_id: session.trainerId, // All exercises are trainer-specific
     }
 
     // Add media URLs if provided
@@ -144,14 +158,11 @@ export async function POST(request: NextRequest) {
     
     // Add muscle groups if provided
     if (muscle_groups !== undefined) {
-      // Ensure it's an array and filter out empty strings
       const groups = Array.isArray(muscle_groups) 
         ? muscle_groups.filter(g => g && g.trim())
         : []
       insertData.muscle_groups = groups.length > 0 ? groups : []
     }
-
-    console.log('Inserting exercise with data:', JSON.stringify(insertData, null, 2))
 
     // Add type-specific defaults
     if (validExerciseType === 'sets') {
@@ -184,9 +195,12 @@ export async function POST(request: NextRequest) {
 
     if (error) {
       console.error('Database error:', error)
-      console.error('Attempted insert data:', JSON.stringify(insertData, null, 2))
+      console.error('Insert data:', JSON.stringify(insertData, null, 2))
       throw error
     }
+
+    // Log for debugging
+    console.log(`Exercise created with trainer_id: ${data.trainer_id} for trainer: ${session.trainerId}`)
 
     return NextResponse.json(
       { exercise: data, message: 'Exercise created successfully' },
@@ -200,4 +214,3 @@ export async function POST(request: NextRequest) {
     )
   }
 }
-

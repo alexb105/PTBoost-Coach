@@ -49,11 +49,26 @@ export async function GET(
 
     const supabase = createServerClient()
     
-    // Fetch exercise details from the global exercises table
+    // Get customer's trainer_id
+    const { data: customer } = await supabase
+      .from('customers')
+      .select('trainer_id')
+      .eq('id', session.userId)
+      .single()
+
+    if (!customer || !customer.trainer_id) {
+      return NextResponse.json(
+        { error: 'Customer trainer not found' },
+        { status: 404 }
+      )
+    }
+    
+    // Fetch exercise details from trainer's exercises
     const { data: exercise, error } = await supabase
       .from('exercises')
       .select('id, display_name, image_url, video_url, description')
       .eq('name', normalizedExerciseName)
+      .eq('trainer_id', customer.trainer_id)
       .single()
 
     if (error) {

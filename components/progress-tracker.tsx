@@ -260,7 +260,6 @@ export function ProgressTracker() {
           notes: ""
         })
         fetchProgress()
-        setWeightPage(1) // Reset to first page after adding new entry
       } else {
         const error = await response.json()
         console.error('Error saving weight:', error)
@@ -443,66 +442,66 @@ export function ProgressTracker() {
           isAdmin={false}
           weightUnit={t("progress.weightUnit")}
         />
-        <Dialog open={weightDialogOpen} onOpenChange={setWeightDialogOpen}>
-          <DialogContent className="bg-card">
-            <DialogHeader>
-              <DialogTitle>{t("progress.logWeight")}</DialogTitle>
-              <DialogDescription>{t("progress.enterCurrentWeight")}</DialogDescription>
-            </DialogHeader>
-            <form onSubmit={handleSaveWeight} className="space-y-4 py-4">
-              <div className="space-y-2">
-                <Label htmlFor="weight">{t("progress.weightLbs")}</Label>
-                <Input 
-                  id="weight" 
-                  type="number" 
-                  step="0.1"
-                  placeholder="82" 
-                  className="bg-background" 
-                  value={weightForm.weight}
-                  onChange={(e) => setWeightForm({ ...weightForm, weight: e.target.value })}
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="date">{t("workouts.date")}</Label>
-                <Input 
-                  id="date" 
-                  type="date" 
-                  className="bg-background" 
-                  value={weightForm.date}
-                  onChange={(e) => setWeightForm({ ...weightForm, date: e.target.value })}
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="notes">{t("workouts.notes")}</Label>
-                <Input 
-                  id="notes" 
-                  type="text" 
-                  placeholder="e.g., Morning weigh-in" 
-                  className="bg-background" 
-                  value={weightForm.notes}
-                  onChange={(e) => setWeightForm({ ...weightForm, notes: e.target.value })}
-                />
-              </div>
-              <Button 
-                type="submit" 
-                className="w-full bg-primary text-primary-foreground hover:bg-primary/90"
-                disabled={submitting}
-              >
-                {submitting ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    {t("common.saving")}
-                  </>
-                ) : (
-                  t("progress.saveWeight")
-                )}
-              </Button>
-            </form>
-          </DialogContent>
-        </Dialog>
-      </div>
+          <Dialog open={weightDialogOpen} onOpenChange={setWeightDialogOpen}>
+            <DialogContent className="bg-card">
+              <DialogHeader>
+                <DialogTitle>{t("progress.logWeight")}</DialogTitle>
+                <DialogDescription>{t("progress.enterCurrentWeight")}</DialogDescription>
+              </DialogHeader>
+              <form onSubmit={handleSaveWeight} className="space-y-4 py-4">
+                <div className="space-y-2">
+                  <Label htmlFor="weight">{t("progress.weightLbs")}</Label>
+                  <Input 
+                    id="weight" 
+                    type="number" 
+                    step="0.1"
+                    placeholder="82" 
+                    className="bg-background" 
+                    value={weightForm.weight}
+                    onChange={(e) => setWeightForm({ ...weightForm, weight: e.target.value })}
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="date">{t("workouts.date")}</Label>
+                  <Input 
+                    id="date" 
+                    type="date" 
+                    className="bg-background" 
+                    value={weightForm.date}
+                    onChange={(e) => setWeightForm({ ...weightForm, date: e.target.value })}
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="notes">{t("workouts.notes")}</Label>
+                  <Input 
+                    id="notes" 
+                    type="text" 
+                    placeholder="e.g., Morning weigh-in" 
+                    className="bg-background" 
+                    value={weightForm.notes}
+                    onChange={(e) => setWeightForm({ ...weightForm, notes: e.target.value })}
+                  />
+                </div>
+                <Button 
+                  type="submit" 
+                  className="w-full bg-primary text-primary-foreground hover:bg-primary/90"
+                  disabled={submitting}
+                >
+                  {submitting ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      {t("common.saving")}
+                    </>
+                  ) : (
+                    t("progress.saveWeight")
+                  )}
+                </Button>
+              </form>
+            </DialogContent>
+          </Dialog>
+        </div>
 
       {/* Progress Photos Section */}
       <Card className="bg-card p-6">

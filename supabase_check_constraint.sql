@@ -12,3 +12,6 @@ GROUP BY exercise_type;
 
 
 
+
+
+

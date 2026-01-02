@@ -7,15 +7,18 @@ import { AdminNav } from "@/components/admin-nav"
 export function NavigationWrapper() {
   const pathname = usePathname()
 
-  // Show admin nav on admin pages
-  if (pathname?.startsWith("/admin")) {
+  // Show admin nav on trainer pages
+  if (pathname?.startsWith("/trainer")) {
     return <AdminNav />
   }
 
-  // Show client nav on client pages (not on auth pages)
-  if (!pathname?.startsWith("/auth")) {
-    return <BottomNav />
+  // Don't show nav on platform admin or auth pages
+  if (pathname?.startsWith("/platform-admin") || pathname?.startsWith("/auth")) {
+    return null
   }
+
+  // Show client nav on client pages
+  return <BottomNav />
 
   // No nav on auth pages
   return null

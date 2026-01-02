@@ -9,3 +9,6 @@ CREATE INDEX IF NOT EXISTS idx_exercises_muscle_groups ON exercises USING GIN (m
 -- Add comment for documentation
 COMMENT ON COLUMN exercises.muscle_groups IS 'Array of muscle groups targeted by this exercise (e.g., Chest, Back, Shoulders, Arms, Legs, Core)';
 
+
+
+

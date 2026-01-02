@@ -1,31 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@/lib/supabase'
 import { normalizeExerciseName } from '@/lib/exercise-utils'
-
-async function checkAdminSession(request: NextRequest) {
-  const sessionToken = request.cookies.get('admin_session')
-  
-  if (!sessionToken) {
-    return null
-  }
-
-  try {
-    const sessionData = JSON.parse(
-      Buffer.from(sessionToken.value, 'base64').toString()
-    )
-
-    const sessionAge = Date.now() - sessionData.timestamp
-    const maxAge = 86400000 // 24 hours
-
-    if (sessionAge > maxAge) {
-      return null
-    }
-
-    return sessionData
-  } catch {
-    return null
-  }
-}
+import { checkAdminSession } from '@/lib/admin-auth'
 
 // GET - Get exercise info (video_url, image_url, display_name)
 export async function GET(
@@ -46,13 +22,21 @@ export async function GET(
     const decodedExerciseName = decodeURIComponent(exerciseName)
     const normalizedExerciseName = normalizeExerciseName(decodedExerciseName)
 
+    if (!session.trainerId) {
+      return NextResponse.json(
+        { error: 'Trainer ID required' },
+        { status: 400 }
+      )
+    }
+
     const supabase = createServerClient()
     
-    // Fetch exercise details from the global exercises table
+    // Fetch exercise details from trainer's exercises
     const { data: exercise, error } = await supabase
       .from('exercises')
       .select('id, display_name, image_url, video_url, description')
       .eq('name', normalizedExerciseName)
+      .eq('trainer_id', session.trainerId)
       .single()
 
     if (error) {

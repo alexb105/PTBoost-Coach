@@ -29,8 +29,8 @@ export function ClientHeader() {
   const [customer, setCustomer] = useState<Customer | null>(null)
   const [loading, setLoading] = useState(true)
 
-  // Don't show header on auth or admin pages
-  if (pathname?.startsWith("/admin") || pathname?.startsWith("/auth")) {
+  // Don't show header on auth, trainer, or platform admin pages
+  if (pathname?.startsWith("/trainer") || pathname?.startsWith("/auth") || pathname?.startsWith("/platform-admin")) {
     return null
   }
 

@@ -29,6 +29,7 @@ interface ExerciseFormItemProps {
   exercise: ExerciseFormData
   index: number
   onUpdate: (index: number, field: keyof ExerciseFormData, value: string) => void
+  onUpdateMultiple?: (index: number, updates: Partial<ExerciseFormData>) => void
   onRemove?: (index: number) => void
   canRemove?: boolean
   idPrefix?: string
@@ -60,17 +61,24 @@ interface WorkoutHistoryEntry {
   workout_id: string
   workout_date: string
   workout_title?: string
+  exercise_type?: "cardio" | "sets"
   sets?: string
   reps?: string
   weight?: string
   seconds?: string
   type?: "reps" | "seconds"
+  duration_minutes?: string
+  distance_km?: string
+  intensity?: string
   notes?: string
   completed_at?: string
   bestSet?: {
     reps?: string
     weight?: string
     seconds?: string
+    duration_minutes?: string
+    distance_km?: string
+    intensity?: string
   }
 }
 
@@ -458,25 +466,60 @@ export function ExerciseFormItem({
                         // Auto-fill the form with these values
                         const updates: Partial<ExerciseFormData> = {}
                         
-                        if (entry.sets) {
-                          updates.sets = entry.sets
-                        }
+                        // Determine if this is a cardio exercise
+                        const isCardio = entry.exercise_type === "cardio" || 
+                                        entry.duration_minutes || 
+                                        entry.distance_km || 
+                                        entry.intensity
                         
-                        // Handle reps vs seconds
-                        if (entry.type === "reps" && entry.reps) {
-                          updates.reps = entry.reps
-                          updates.type = "reps"
-                        } else if (entry.type === "seconds" && entry.seconds) {
-                          updates.reps = entry.seconds
-                          updates.type = "seconds"
-                        } else if (entry.reps) {
-                          // Fallback: if we have reps but no type specified, assume reps
-                          updates.reps = entry.reps
-                          updates.type = "reps"
-                        }
-                        
-                        if (entry.weight) {
-                          updates.weight = entry.weight
+                        if (isCardio) {
+                          // Set exercise type to cardio
+                          updates.exercise_type = "cardio"
+                          
+                          // Populate cardio fields
+                          if (entry.duration_minutes) {
+                            updates.duration_minutes = entry.duration_minutes
+                          }
+                          if (entry.distance_km) {
+                            updates.distance_km = entry.distance_km
+                          }
+                          if (entry.intensity) {
+                            updates.intensity = entry.intensity
+                          }
+                          
+                          // Clear sets-based fields for cardio
+                          updates.sets = ""
+                          updates.reps = ""
+                          updates.weight = ""
+                        } else {
+                          // Sets-based exercise
+                          updates.exercise_type = "sets"
+                          
+                          if (entry.sets) {
+                            updates.sets = entry.sets
+                          }
+                          
+                          // Handle reps vs seconds
+                          if (entry.type === "reps" && entry.reps) {
+                            updates.reps = entry.reps
+                            updates.type = "reps"
+                          } else if (entry.type === "seconds" && entry.seconds) {
+                            updates.reps = entry.seconds
+                            updates.type = "seconds"
+                          } else if (entry.reps) {
+                            // Fallback: if we have reps but no type specified, assume reps
+                            updates.reps = entry.reps
+                            updates.type = "reps"
+                          }
+                          
+                          if (entry.weight) {
+                            updates.weight = entry.weight
+                          }
+                          
+                          // Clear cardio fields for sets-based
+                          updates.duration_minutes = ""
+                          updates.distance_km = ""
+                          updates.intensity = ""
                         }
                         
                         if (entry.notes) {
@@ -515,25 +558,47 @@ export function ExerciseFormItem({
                                 </p>
                               )}
                               <div className="flex flex-wrap gap-2 text-xs">
-                                {entry.sets && (
-                                  <span className="text-muted-foreground">
-                                    <span className="font-medium">Sets:</span> {entry.sets}
-                                  </span>
-                                )}
-                                {entry.reps && entry.type === "reps" && (
-                                  <span className="text-muted-foreground">
-                                    <span className="font-medium">Reps:</span> {entry.reps}
-                                  </span>
-                                )}
-                                {entry.seconds && entry.type === "seconds" && (
-                                  <span className="text-muted-foreground">
-                                    <span className="font-medium">Seconds:</span> {entry.seconds}
-                                  </span>
-                                )}
-                                {entry.weight && (
-                                  <span className="text-muted-foreground">
-                                    <span className="font-medium">Weight:</span> {entry.weight}
-                                  </span>
+                                {entry.exercise_type === "cardio" || entry.duration_minutes || entry.distance_km || entry.intensity ? (
+                                  <>
+                                    {entry.duration_minutes && (
+                                      <span className="text-muted-foreground">
+                                        <span className="font-medium">Duration:</span> {entry.duration_minutes}min
+                                      </span>
+                                    )}
+                                    {entry.distance_km && (
+                                      <span className="text-muted-foreground">
+                                        <span className="font-medium">Distance:</span> {entry.distance_km}km
+                                      </span>
+                                    )}
+                                    {entry.intensity && (
+                                      <span className="text-muted-foreground">
+                                        <span className="font-medium">Intensity:</span> {entry.intensity}
+                                      </span>
+                                    )}
+                                  </>
+                                ) : (
+                                  <>
+                                    {entry.sets && (
+                                      <span className="text-muted-foreground">
+                                        <span className="font-medium">Sets:</span> {entry.sets}
+                                      </span>
+                                    )}
+                                    {entry.reps && entry.type === "reps" && (
+                                      <span className="text-muted-foreground">
+                                        <span className="font-medium">Reps:</span> {entry.reps}
+                                      </span>
+                                    )}
+                                    {entry.seconds && entry.type === "seconds" && (
+                                      <span className="text-muted-foreground">
+                                        <span className="font-medium">Seconds:</span> {entry.seconds}
+                                      </span>
+                                    )}
+                                    {entry.weight && (
+                                      <span className="text-muted-foreground">
+                                        <span className="font-medium">Weight:</span> {entry.weight}
+                                      </span>
+                                    )}
+                                  </>
                                 )}
                               </div>
                               {hasBestSet && (

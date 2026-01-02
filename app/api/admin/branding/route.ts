@@ -1,44 +1,43 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@/lib/supabase'
+import { checkAdminSession } from '@/lib/admin-auth'
 
-// Check admin session helper
-async function checkAdminSession(request: NextRequest) {
-  const sessionToken = request.cookies.get('admin_session')
-  
-  if (!sessionToken) {
-    return null
-  }
-
-  try {
-    const sessionData = JSON.parse(
-      Buffer.from(sessionToken.value, 'base64').toString()
-    )
-
-    const sessionAge = Date.now() - sessionData.timestamp
-    const maxAge = 86400000 // 24 hours
-
-    if (sessionAge > maxAge) {
-      return null
-    }
-
-    return sessionData
-  } catch {
-    return null
-  }
-}
-
-// GET - Fetch branding settings
+// GET - Fetch branding settings (trainer-specific)
 export async function GET(request: NextRequest) {
   try {
+    const session = await checkAdminSession(request)
+    
+    if (!session) {
+      return NextResponse.json(
+        { error: 'Unauthorized' },
+        { status: 401 }
+      )
+    }
+
+    // For legacy admin (platform admin), return defaults or global settings
+    // For trainers, return trainer-specific settings
+    if (!session.trainerId) {
+      // Legacy admin - return defaults
+      return NextResponse.json({
+        brand_name: 'APEX Training',
+        tagline: 'Elite Personal Training Platform',
+        logo_url: null,
+        secondary_color: '#3b82f6',
+        admin_profile_picture_url: null,
+        admin_name: null,
+      })
+    }
+
     const supabase = createServerClient()
     const { data, error } = await supabase
       .from('branding_settings')
       .select('*')
+      .eq('trainer_id', session.trainerId)
       .limit(1)
       .single()
 
     if (error) {
-      // If no settings exist, return defaults
+      // If no settings exist for this trainer, return defaults
       if (error.code === 'PGRST116') {
         return NextResponse.json({
           brand_name: 'APEX Training',
@@ -69,7 +68,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// PUT - Update branding settings
+// PUT - Update branding settings (trainer-specific)
 export async function PUT(request: NextRequest) {
   try {
     const session = await checkAdminSession(request)
@@ -78,6 +77,14 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }
+      )
+    }
+
+    // Legacy admin cannot update branding (they don't have a trainer_id)
+    if (!session.trainerId) {
+      return NextResponse.json(
+        { error: 'Branding settings are only available for trainers' },
+        { status: 403 }
       )
     }
 
@@ -92,16 +99,17 @@ export async function PUT(request: NextRequest) {
 
     const supabase = createServerClient()
 
-    // Check if settings exist
+    // Check if settings exist for this trainer
     const { data: existing } = await supabase
       .from('branding_settings')
       .select('id')
+      .eq('trainer_id', session.trainerId)
       .limit(1)
-      .single()
+      .maybeSingle()
 
     let result
     if (existing) {
-      // Update existing settings
+      // Update existing trainer-specific settings
       const { data, error } = await supabase
         .from('branding_settings')
         .update({
@@ -119,10 +127,11 @@ export async function PUT(request: NextRequest) {
       if (error) throw error
       result = data
     } else {
-      // Insert new settings
+      // Insert new trainer-specific settings
       const { data, error } = await supabase
         .from('branding_settings')
         .insert({
+          trainer_id: session.trainerId,
           brand_name,
           tagline: tagline || null,
           logo_url: logo_url || null,

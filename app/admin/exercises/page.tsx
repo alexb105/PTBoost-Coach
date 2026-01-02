@@ -98,10 +98,10 @@ export default function ExercisesPage() {
     try {
       const response = await fetch("/api/auth/admin/check")
       if (!response.ok) {
-        router.push("/auth/admin")
+        router.push("/auth/trainer")
       }
     } catch (error) {
-      router.push("/auth/admin")
+      router.push("/auth/trainer")
     }
   }
 
@@ -288,7 +288,7 @@ export default function ExercisesPage() {
             </div>
             <Button
               variant="ghost"
-              onClick={() => router.push("/admin")}
+              onClick={() => router.push("/trainer")}
             >
               Back to Admin Portal
             </Button>
@@ -300,24 +300,24 @@ export default function ExercisesPage() {
       <main className="container mx-auto px-4 py-8">
         <div className="mb-6 space-y-4">
           <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-2xl font-semibold">Exercises</h2>
-              <p className="text-sm text-muted-foreground">
-                Manage exercises that can be used across all clients. Each client has their own PB data.
-              </p>
-            </div>
+          <div>
+            <h2 className="text-2xl font-semibold">Exercises</h2>
+            <p className="text-sm text-muted-foreground">
+              Manage exercises that can be used across all clients. Each client has their own PB data.
+            </p>
+          </div>
           <Dialog open={isDialogOpen} onOpenChange={(open) => {
             if (open) {
               setEditingExercise(null)
-              setExerciseForm({
-                name: "",
-                exercise_type: "sets",
+    setExerciseForm({
+      name: "",
+      exercise_type: "sets",
                 image_url: "",
                 video_url: "",
                 description: "",
                 muscle_groups: [],
-              })
-            }
+    })
+  }
             setIsDialogOpen(open)
           }}>
             <DialogTrigger asChild>

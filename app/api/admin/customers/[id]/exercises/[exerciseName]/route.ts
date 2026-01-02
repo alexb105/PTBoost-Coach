@@ -1,32 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@/lib/supabase'
 import { extractAndNormalizeExerciseName, normalizeExerciseName } from '@/lib/exercise-utils'
-
-// Helper to check admin session
-async function checkAdminSession(request: NextRequest) {
-  const adminSession = request.cookies.get('admin_session')
-  
-  if (!adminSession) {
-    return null
-  }
-
-  try {
-    const sessionData = JSON.parse(
-      Buffer.from(adminSession.value, 'base64').toString()
-    )
-
-    const sessionAge = Date.now() - sessionData.timestamp
-    const maxAge = 86400000 // 24 hours
-
-    if (sessionAge > maxAge) {
-      return null
-    }
-
-    return sessionData
-  } catch {
-    return null
-  }
-}
+import { checkAdminSession } from '@/lib/admin-auth'
 
 // GET - Get customer's PB for a specific exercise
 export async function GET(
@@ -47,13 +22,35 @@ export async function GET(
     const decodedExerciseName = decodeURIComponent(exerciseName)
     const normalizedExerciseName = normalizeExerciseName(decodedExerciseName)
 
+    if (!session.trainerId) {
+      return NextResponse.json(
+        { error: 'Trainer ID required' },
+        { status: 400 }
+      )
+    }
+
     const supabase = createServerClient()
     
-    // First, try to find the exercise in the global exercises table
+    // Verify customer belongs to this trainer
+    const { data: customer } = await supabase
+      .from('customers')
+      .select('trainer_id')
+      .eq('id', customerId)
+      .single()
+
+    if (!customer || customer.trainer_id !== session.trainerId) {
+      return NextResponse.json(
+        { error: 'Customer not found or access denied' },
+        { status: 404 }
+      )
+    }
+    
+    // Find the exercise in trainer's exercises
     const { data: exercise } = await supabase
       .from('exercises')
       .select('id, display_name')
       .eq('name', normalizedExerciseName)
+      .eq('trainer_id', session.trainerId)
       .single()
 
     // Get the PB for this exercise (prefer exercise_id if available, fallback to exercise_name)
@@ -106,6 +103,9 @@ export async function GET(
       reps?: string
       weight?: string
       seconds?: string
+      duration_minutes?: string
+      distance_km?: string
+      intensity?: string
       completed_at?: string
     }> = []
 
@@ -114,26 +114,132 @@ export async function GET(
       workout_id: string
       workout_date: string
       workout_title?: string
+      exercise_type?: "cardio" | "sets"
       sets?: string
       reps?: string
       weight?: string
       seconds?: string
       type?: "reps" | "seconds"
+      duration_minutes?: string
+      distance_km?: string
+      intensity?: string
       notes?: string
       completed_at?: string
       bestSet?: {
         reps?: string
         weight?: string
         seconds?: string
+        duration_minutes?: string
+        distance_km?: string
+        intensity?: string
       }
     }> = []
 
     // Helper to parse exercise string
     const parseExerciseString = (exerciseStr: string) => {
       if (!exerciseStr || !exerciseStr.trim()) {
-        return { sets: "", reps: "", type: "reps" as const, weight: "", notes: "" }
+        return { exercise_type: "sets" as const, sets: "", reps: "", type: "reps" as const, weight: "", notes: "" }
       }
 
+      // Check for new cardio format: "[CARDIO] Exercise Name | 30min | 5km | Moderate - Notes"
+      if (exerciseStr.startsWith("[CARDIO]")) {
+        const cardioStr = exerciseStr.replace("[CARDIO]", "").trim()
+        
+        // Split by " - " to separate notes
+        const parts = cardioStr.split(" - ")
+        const notes = parts.length > 1 ? parts[1].trim() : ""
+        const mainPart = parts[0].trim()
+        
+        // Split by " | " to get name and cardio details
+        const segments = mainPart.split(" | ")
+        
+        let duration_minutes = ""
+        let distance_km = ""
+        let intensity = ""
+        
+        // Parse cardio details from remaining segments
+        for (let i = 1; i < segments.length; i++) {
+          const segment = segments[i].trim()
+          if (segment.endsWith("min")) {
+            duration_minutes = segment.replace("min", "").trim()
+          } else if (segment.endsWith("km")) {
+            distance_km = segment.replace("km", "").trim()
+          } else {
+            // Assume it's intensity
+            intensity = segment
+          }
+        }
+        
+        return {
+          exercise_type: "cardio" as const,
+          sets: "",
+          reps: "",
+          type: "reps" as const,
+          weight: "",
+          duration_minutes,
+          distance_km,
+          intensity,
+          notes,
+        }
+      }
+
+      // Check if this is the old cardio exercise format (contains "Duration:", "Distance:", or "Intensity:")
+      const isCardioFormat = exerciseStr.includes("Duration:") || exerciseStr.includes("Distance:") || exerciseStr.includes("Intensity:")
+      
+      if (isCardioFormat) {
+        // Cardio format: "Exercise Name - Duration: 30min, Distance: 5.0km, Intensity: Moderate - Notes"
+        const parts = exerciseStr.split(" - ")
+        let notes = ""
+        let mainPart = parts[0].trim()
+        let cardioData = ""
+        
+        // Check if last part looks like notes (doesn't contain cardio keywords)
+        if (parts.length > 1) {
+          const lastPart = parts[parts.length - 1]
+          if (!lastPart.includes("Duration:") && !lastPart.includes("Distance:") && !lastPart.includes("Intensity:")) {
+            notes = lastPart.trim()
+            // Everything between first and last is cardio data
+            cardioData = parts.slice(1, -1).join(" - ").trim()
+          } else {
+            // No notes, all middle parts are cardio data
+            cardioData = parts.slice(1).join(" - ").trim()
+          }
+        }
+        
+        // Extract cardio values
+        let duration_minutes = ""
+        let distance_km = ""
+        let intensity = ""
+        
+        const durationMatch = cardioData.match(/Duration:\s*(\d+)\s*min/i)
+        if (durationMatch) {
+          duration_minutes = durationMatch[1]
+        }
+        
+        const distanceMatch = cardioData.match(/Distance:\s*([\d.]+)\s*km/i)
+        if (distanceMatch) {
+          distance_km = distanceMatch[1]
+        }
+        
+        const intensityMatch = cardioData.match(/Intensity:\s*([^,]+)/i)
+        if (intensityMatch) {
+          intensity = intensityMatch[1].trim()
+        }
+        
+        return {
+          exercise_type: "cardio" as const,
+          sets: "",
+          reps: "",
+          type: "reps" as const,
+          weight: "",
+          duration_minutes,
+          distance_km,
+          intensity,
+          notes,
+        }
+      }
+
+      // Sets-based format: "Exercise Name 3x8 @ 50kg - Notes"
       const parts = exerciseStr.split(" - ")
       const notes = parts.length > 1 ? parts[1].trim() : ""
       let mainPart = parts[0].trim()
@@ -155,7 +261,7 @@ export async function GET(
         type = setsRepsMatch[3] === "s" ? "seconds" : "reps"
       }
       
-      return { sets, reps, type, weight, notes }
+      return { exercise_type: "sets" as const, sets, reps, type, weight, notes }
     }
 
     if (workouts) {
@@ -183,11 +289,15 @@ export async function GET(
             workout_id: workout.id,
             workout_date: workout.date,
             workout_title: (workout as any).title,
+            exercise_type: parsedExercise.exercise_type,
             sets: parsedExercise.sets,
             reps: parsedExercise.reps,
             weight: parsedExercise.weight,
             seconds: parsedExercise.type === "seconds" ? parsedExercise.reps : undefined,
             type: parsedExercise.type,
+            duration_minutes: parsedExercise.duration_minutes,
+            distance_km: parsedExercise.distance_km,
+            intensity: parsedExercise.intensity,
             notes: parsedExercise.notes,
             completed_at: completion?.completed_at,
             bestSet: completion?.bestSet,
@@ -201,6 +311,9 @@ export async function GET(
               reps: completion.bestSet.reps,
               weight: completion.bestSet.weight,
               seconds: completion.bestSet.seconds,
+              duration_minutes: completion.bestSet.duration_minutes,
+              distance_km: completion.bestSet.distance_km,
+              intensity: completion.bestSet.intensity,
               completed_at: completion.completed_at,
             })
           }

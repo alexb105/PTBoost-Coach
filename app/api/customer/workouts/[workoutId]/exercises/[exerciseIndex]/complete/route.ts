@@ -160,34 +160,48 @@ export async function POST(
     // Wrap in try-catch so PB errors don't fail the exercise completion
     if (bestSet && (bestSet.reps || bestSet.weight || bestSet.seconds) && normalizedExerciseName) {
       try {
-        // Get or create exercise in global exercises table
-        let exerciseId: string | null = null
-        
-        // Try to find existing exercise
-        const { data: existingExercise, error: findError } = await supabase
-          .from('exercises')
-          .select('id')
-          .eq('name', normalizedExerciseName)
+        // Get customer's trainer_id
+        const { data: customer } = await supabase
+          .from('customers')
+          .select('trainer_id')
+          .eq('id', session.userId)
           .single()
 
-        if (existingExercise && !findError) {
-          exerciseId = existingExercise.id
-        } else if (findError?.code === 'PGRST116') {
-          // Exercise doesn't exist, create it
-          const { data: newExercise, error: exerciseError } = await supabase
+        // Get or create exercise in trainer's exercises
+        let exerciseId: string | null = null
+        
+        if (!customer || !customer.trainer_id) {
+          console.warn('No trainer_id found for customer, skipping exercise lookup')
+        } else {
+          // Try to find existing exercise for this trainer
+          const { data: existingExercise, error: findError } = await supabase
             .from('exercises')
-            .insert({
-              name: normalizedExerciseName,
-              display_name: displayExerciseName || normalizedExerciseName.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' '),
-            })
             .select('id')
+            .eq('name', normalizedExerciseName)
+            .eq('trainer_id', customer.trainer_id)
             .single()
 
-          if (exerciseError) {
-            console.error('Error creating exercise:', exerciseError)
-            // Continue without exercise_id if creation fails
-          } else if (newExercise) {
-            exerciseId = newExercise.id
+          if (existingExercise && !findError) {
+            exerciseId = existingExercise.id
+          } else if (findError?.code === 'PGRST116') {
+            // Exercise doesn't exist, create it for this trainer
+            const { data: newExercise, error: exerciseError } = await supabase
+              .from('exercises')
+              .insert({
+                name: normalizedExerciseName,
+                display_name: displayExerciseName || normalizedExerciseName.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' '),
+                trainer_id: customer.trainer_id,
+                exercise_type: 'sets', // Default to sets, can be updated later
+              })
+              .select('id')
+              .single()
+
+            if (exerciseError) {
+              console.error('Error creating exercise:', exerciseError)
+              // Continue without exercise_id if creation fails
+            } else if (newExercise) {
+              exerciseId = newExercise.id
+            }
           }
         }
 
@@ -222,7 +236,7 @@ export async function POST(
           }
         }
 
-        const pbData: any = {
+        const pbData: Record<string, unknown> = {
           customer_id: session.userId,
           exercise_name: normalizedExerciseName, // Keep for backward compatibility
           reps: bestSet.reps || null,
@@ -270,7 +284,7 @@ export async function POST(
             }
           }
         }
-      } catch (pbError: any) {
+      } catch (pbError: unknown) {
         // Log PB errors but don't fail the exercise completion
         console.error('Error saving PB (non-blocking):', pbError)
       }
@@ -280,12 +294,11 @@ export async function POST(
       { workout: data, message: 'Exercise marked as complete' },
       { status: 200 }
     )
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error completing exercise:', error)
     return NextResponse.json(
-      { error: error.message || 'Failed to complete exercise' },
+      { error: error instanceof Error ? error.message : 'Failed to complete exercise' },
       { status: 500 }
     )
   }
 }
-
