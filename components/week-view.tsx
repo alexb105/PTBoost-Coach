@@ -239,7 +239,7 @@ export function WeekView({ workouts = [], canEdit = false, onDayClick, onEditWor
                 )}
               </div>
               <div className="flex items-center gap-2">
-                {canEdit && onToggleRestDay && (!day.workout || day.status === "rest") && (
+                {canEdit && onToggleRestDay && (
                   <Button
                     variant="ghost"
                     size="icon"

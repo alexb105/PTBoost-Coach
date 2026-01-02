@@ -37,7 +37,51 @@ function parseExercise(exerciseStr: string): {
     return { name: "", exercise_type: "sets", sets: "", reps: "", type: "reps", weight: "", notes: "" }
   }
 
-  // Check if this is a cardio exercise format (contains "Duration:", "Distance:", or "Intensity:")
+  // Check for new cardio format: "[CARDIO] Exercise Name | 30min | 5km | Moderate - Notes"
+  if (exerciseStr.startsWith("[CARDIO]")) {
+    const cardioStr = exerciseStr.replace("[CARDIO]", "").trim()
+    
+    // Split by " - " to separate notes
+    const parts = cardioStr.split(" - ")
+    const notes = parts.length > 1 ? parts[1].trim() : ""
+    const mainPart = parts[0].trim()
+    
+    // Split by " | " to get name and cardio details
+    const segments = mainPart.split(" | ")
+    const name = segments[0].trim()
+    
+    let duration_minutes = ""
+    let distance_km = ""
+    let intensity = ""
+    
+    // Parse cardio details from remaining segments
+    for (let i = 1; i < segments.length; i++) {
+      const segment = segments[i].trim()
+      if (segment.endsWith("min")) {
+        duration_minutes = segment.replace("min", "")
+      } else if (segment.endsWith("km")) {
+        distance_km = segment.replace("km", "")
+      } else {
+        // Assume it's intensity
+        intensity = segment
+      }
+    }
+    
+    return {
+      name,
+      exercise_type: "cardio",
+      sets: "",
+      reps: "",
+      type: "reps",
+      weight: "",
+      duration_minutes,
+      distance_km,
+      intensity,
+      notes,
+    }
+  }
+
+  // Check if this is the old cardio exercise format (contains "Duration:", "Distance:", or "Intensity:")
   const isCardioFormat = exerciseStr.includes("Duration:") || exerciseStr.includes("Distance:") || exerciseStr.includes("Intensity:")
   
   if (isCardioFormat) {

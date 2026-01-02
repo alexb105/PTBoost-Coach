@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ArrowLeft, User, Calendar, MessageCircle, Apple, Plus, Send, Loader2, X, Trash2, Pencil, BookOpen, Save, CheckCircle2, TrendingUp, Camera, Flame, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Eye, Lock, Heart, Reply } from "lucide-react"
-import { format } from "date-fns"
+import { format, parseISO } from "date-fns"
 import { toast } from "sonner"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -211,40 +211,86 @@ export default function CustomerDetailPage() {
 
   // Helper function to parse exercise string into structured format
   const parseExercise = (exerciseStr: string): ExerciseFormData => {
-    // Format: "Exercise Name 3x8 @ 50kg - Notes" or "Exercise Name 3x30s @ 50kg - Notes"
+    // Format for sets-based: "Exercise Name 3x8 @ 50kg - Notes" or "Exercise Name 3x30s @ 50kg - Notes"
+    // Format for cardio: "[CARDIO] Exercise Name | 30min | 5km | Moderate - Notes"
     if (!exerciseStr || !exerciseStr.trim()) {
-      return { name: "", sets: "", reps: "", type: "reps", weight: "", notes: "" }
+      return { name: "", sets: "", reps: "", type: "reps", weight: "", notes: "", exercise_type: "sets" }
     }
 
+    // Check if this is a cardio exercise
+    if (exerciseStr.startsWith("[CARDIO]")) {
+      const cardioStr = exerciseStr.replace("[CARDIO]", "").trim()
+      
+      // Split by " - " to separate notes
+      const parts = cardioStr.split(" - ")
+      const notes = parts.length > 1 ? parts[1].trim() : ""
+      const mainPart = parts[0].trim()
+      
+      // Split by " | " to get name and cardio details
+      const segments = mainPart.split(" | ")
+      const name = segments[0].trim()
+      
+      let duration_minutes = ""
+      let distance_km = ""
+      let intensity = ""
+      
+      // Parse cardio details from remaining segments
+      for (let i = 1; i < segments.length; i++) {
+        const segment = segments[i].trim()
+        if (segment.endsWith("min")) {
+          duration_minutes = segment.replace("min", "")
+        } else if (segment.endsWith("km")) {
+          distance_km = segment.replace("km", "")
+        } else {
+          // Assume it's intensity
+          intensity = segment
+        }
+      }
+      
+      return {
+        name,
+        exercise_type: "cardio",
+        sets: "",
+        reps: "",
+        type: "reps",
+        weight: "",
+        duration_minutes,
+        distance_km,
+        intensity,
+        notes,
+      }
+    }
+
+    // Parse sets-based exercise
     // Split by " - " to separate notes
     const parts = exerciseStr.split(" - ")
     const notes = parts.length > 1 ? parts[1].trim() : ""
-      let mainPart = parts[0].trim()
-      
-      // Extract weight (format: @ weight)
-      const weightMatch = mainPart.match(/@\s*([^-]+?)(?:\s*-\s*|$)/)
-      let weight = ""
-      if (weightMatch) {
-        weight = weightMatch[1].trim()
-        mainPart = mainPart.replace(/@\s*[^-]+?(\s*-\s*|$)/, "").trim()
-      }
-      
-      // Extract sets and reps/seconds (format: 3x8 or 3x30s)
-      const setsRepsMatch = mainPart.match(/(\d+)x([\d-]+)(s)?/)
-      let sets = ""
-      let reps = ""
-      let type: "reps" | "seconds" = "reps"
-      if (setsRepsMatch) {
-        sets = setsRepsMatch[1]
-        reps = setsRepsMatch[2]
-        type = setsRepsMatch[3] === "s" ? "seconds" : "reps"
-        mainPart = mainPart.replace(/\d+x[\d-]+s?/, "").trim()
-      }
-      
-      // Remaining is the exercise name
-      const name = mainPart.trim()
-      
-    return { name, sets, reps, type, weight, notes }
+    let mainPart = parts[0].trim()
+    
+    // Extract weight (format: @ weight)
+    const weightMatch = mainPart.match(/@\s*([^-]+?)(?:\s*-\s*|$)/)
+    let weight = ""
+    if (weightMatch) {
+      weight = weightMatch[1].trim()
+      mainPart = mainPart.replace(/@\s*[^-]+?(\s*-\s*|$)/, "").trim()
+    }
+    
+    // Extract sets and reps/seconds (format: 3x8 or 3x30s)
+    const setsRepsMatch = mainPart.match(/(\d+)x([\d-]+)(s)?/)
+    let sets = ""
+    let reps = ""
+    let type: "reps" | "seconds" = "reps"
+    if (setsRepsMatch) {
+      sets = setsRepsMatch[1]
+      reps = setsRepsMatch[2]
+      type = setsRepsMatch[3] === "s" ? "seconds" : "reps"
+      mainPart = mainPart.replace(/\d+x[\d-]+s?/, "").trim()
+    }
+    
+    // Remaining is the exercise name
+    const name = mainPart.trim()
+    
+    return { name, sets, reps, type, weight, notes, exercise_type: "sets" }
   }
 
   // Chat state
@@ -1201,7 +1247,10 @@ export default function CustomerDetailPage() {
       
       if (isRestDay) {
         // Remove rest day - delete the workout
-        const existingWorkout = workouts.find(w => w.date === dateStr && w.is_rest_day)
+        const existingWorkout = workouts.find(w => {
+          const workoutDate = format(parseISO(w.date), "yyyy-MM-dd")
+          return workoutDate === dateStr && w.is_rest_day
+        })
         if (existingWorkout) {
           const response = await fetch(`/api/admin/customers/${customerId}/workouts/${existingWorkout.id}`, {
             method: 'DELETE',
@@ -1209,11 +1258,36 @@ export default function CustomerDetailPage() {
           if (!response.ok) {
             throw new Error("Failed to remove rest day")
           }
-          // Update local state immediately
-          setWorkouts(workouts.filter(w => w.id !== existingWorkout.id))
-          toast.success("Rest day removed")
         }
+        // Update local state immediately - remove any workout on this date that is a rest day
+        // Use date comparison to handle any date format differences
+        setWorkouts(prevWorkouts => {
+          const filtered = prevWorkouts.filter(w => {
+            const workoutDate = format(parseISO(w.date), "yyyy-MM-dd")
+            return !(workoutDate === dateStr && w.is_rest_day)
+          })
+          return filtered
+        })
+        toast.success("Rest day removed")
       } else {
+        // Create rest day - first delete any existing workout on this date, then create rest day
+        const existingWorkout = workouts.find(w => {
+          const workoutDate = format(parseISO(w.date), "yyyy-MM-dd")
+          return workoutDate === dateStr && !w.is_rest_day
+        })
+        
+        // Delete existing workout if it exists
+        if (existingWorkout) {
+          try {
+            await fetch(`/api/admin/customers/${customerId}/workouts/${existingWorkout.id}`, {
+              method: 'DELETE',
+            })
+          } catch (error) {
+            console.error("Error deleting existing workout:", error)
+            // Continue anyway to create rest day
+          }
+        }
+        
         // Create rest day - create a workout with is_rest_day = true
         const response = await fetch(`/api/admin/customers/${customerId}/workouts`, {
           method: 'POST',
@@ -1230,8 +1304,14 @@ export default function CustomerDetailPage() {
           throw new Error("Failed to mark as rest day")
         }
         const data = await response.json()
-        // Update local state immediately
-        setWorkouts([...workouts, data.workout])
+        // Update local state immediately - remove any existing workout for this date first
+        setWorkouts(prevWorkouts => {
+          const filtered = prevWorkouts.filter(w => {
+            const workoutDate = format(parseISO(w.date), "yyyy-MM-dd")
+            return workoutDate !== dateStr
+          })
+          return [...filtered, data.workout]
+        })
         toast.success("Day marked as rest day")
       }
     } catch (error: any) {
@@ -1283,10 +1363,10 @@ export default function CustomerDetailPage() {
       const validExercises = newWorkout.exercises.filter(ex => ex.name && ex.name.trim())
       const newIndex = validExercises.length // This will be the index of the new exercise after filtering
       
-      setNewWorkout({
-        ...newWorkout,
+    setNewWorkout({
+      ...newWorkout,
         exercises: [...newWorkout.exercises, newExercise],
-      })
+    })
       // Expand the newly added exercise
       setExpandedExerciseIndex(newIndex)
       setIsExerciseSelectDialogOpen(false)
@@ -1311,20 +1391,39 @@ export default function CustomerDetailPage() {
     e.preventDefault()
     try {
       // Format exercises as strings for storage
+      // Format for sets-based: "Exercise Name 3x8 @ 50kg - Notes"
+      // Format for cardio: "[CARDIO] Exercise Name | 30min | 5km | Moderate - Notes"
       const formattedExercises = newWorkout.exercises
         .filter((ex) => ex.name && ex.name.trim())
         .map((ex) => {
-          let exerciseStr = ex.name.trim()
+          if (ex.exercise_type === "cardio") {
+            // Cardio format: "[CARDIO] Name | duration | distance | intensity - notes"
+            let exerciseStr = `[CARDIO] ${ex.name.trim()}`
+            const cardioDetails = []
+            if (ex.duration_minutes) cardioDetails.push(`${ex.duration_minutes}min`)
+            if (ex.distance_km) cardioDetails.push(`${ex.distance_km}km`)
+            if (ex.intensity) cardioDetails.push(ex.intensity)
+            if (cardioDetails.length > 0) {
+              exerciseStr += ` | ${cardioDetails.join(' | ')}`
+            }
+            if (ex.notes && ex.notes.trim()) {
+              exerciseStr += ` - ${ex.notes.trim()}`
+            }
+            return exerciseStr
+          } else {
+            // Sets-based format
+            let exerciseStr = ex.name.trim()
             if (ex.sets && ex.reps) {
               exerciseStr += ` ${ex.sets}x${ex.reps}${ex.type === "seconds" ? "s" : ""}`
             }
             if (ex.weight && ex.weight.trim()) {
               exerciseStr += ` @ ${ex.weight.trim()}`
             }
-          if (ex.notes && ex.notes.trim()) {
-            exerciseStr += ` - ${ex.notes.trim()}`
+            if (ex.notes && ex.notes.trim()) {
+              exerciseStr += ` - ${ex.notes.trim()}`
+            }
+            return exerciseStr
           }
-          return exerciseStr
         })
 
       console.log("Saving workout with exercises:", formattedExercises)
@@ -1839,23 +1938,13 @@ export default function CustomerDetailPage() {
                                 key={originalIndex}
                                 exercise={exercise}
                                 index={filteredIndex}
-                                onUpdate={(idx, field, value) => {
-                                  // Map filtered index back to original index
-                                  const validExercises = newWorkout.exercises
-                                    .map((ex, i) => ({ ex, i }))
-                                    .filter(({ ex }) => ex.name && ex.name.trim())
-                                  if (validExercises[idx]) {
-                                    updateExercise(validExercises[idx].i, field, value)
-                                  }
+                                onUpdate={(_, field, value) => {
+                                  // Use originalIndex directly instead of mapping back
+                                  updateExercise(originalIndex, field, value)
                                 }}
-                                onRemove={(idx) => {
-                                  // Map filtered index back to original index
-                                  const validExercises = newWorkout.exercises
-                                    .map((ex, i) => ({ ex, i }))
-                                    .filter(({ ex }) => ex.name && ex.name.trim())
-                                  if (validExercises[idx]) {
-                                    removeExercise(validExercises[idx].i)
-                                  }
+                                onRemove={() => {
+                                  // Use originalIndex directly instead of mapping back
+                                  removeExercise(originalIndex)
                                 }}
                                 canRemove={newWorkout.exercises.filter(ex => ex.name && ex.name.trim()).length > 1}
                                 idPrefix="exercise"
