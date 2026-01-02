@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Settings, Users, LogOut, Loader2, Crown, TrendingUp, Key, AlertCircle, Lock, Trash2 } from "lucide-react"
+import { Settings, Users, LogOut, Loader2, Crown, TrendingUp, Key, AlertCircle, Lock, Trash2, CreditCard, ExternalLink } from "lucide-react"
 import { toast } from "sonner"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
@@ -25,6 +25,7 @@ interface Trainer {
   clientCount: number
   created_at: string
   auth_user_id: string | null
+  stripe_customer_id: string | null
 }
 
 export default function PlatformAdminPage() {
@@ -267,6 +268,7 @@ export default function PlatformAdminPage() {
                     <TableHead>Trainer</TableHead>
                     <TableHead>Email</TableHead>
                     <TableHead>Auth Status</TableHead>
+                    <TableHead>Stripe</TableHead>
                     <TableHead>Subscription</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Clients</TableHead>
@@ -292,6 +294,22 @@ export default function PlatformAdminPage() {
                             <AlertCircle className="h-3 w-3 mr-1" />
                             No Auth
                           </Badge>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {trainer.stripe_customer_id ? (
+                          <a
+                            href={`https://dashboard.stripe.com/customers/${trainer.stripe_customer_id}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-1 text-xs text-blue-500 hover:text-blue-600 hover:underline"
+                          >
+                            <CreditCard className="h-3 w-3" />
+                            {trainer.stripe_customer_id.slice(0, 14)}...
+                            <ExternalLink className="h-3 w-3" />
+                          </a>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">Not linked</span>
                         )}
                       </TableCell>
                       <TableCell>
