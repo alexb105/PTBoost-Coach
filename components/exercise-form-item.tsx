@@ -6,8 +6,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
-import { X, Trophy, Calendar, Loader2 } from "lucide-react"
-import { ExerciseAutocomplete } from "@/components/exercise-autocomplete"
+import { X, Trophy, Calendar, Loader2, ChevronDown, ChevronUp } from "lucide-react"
 import { format, parseISO } from "date-fns"
 import { toast } from "sonner"
 import { normalizeExerciseName } from "@/lib/exercise-utils"
@@ -34,6 +33,8 @@ interface ExerciseFormItemProps {
   canRemove?: boolean
   idPrefix?: string
   customerId?: string // Customer ID for viewing PBs
+  isExpanded?: boolean
+  onToggleExpand?: (index: number) => void
 }
 
 interface ExercisePB {
@@ -82,6 +83,8 @@ export function ExerciseFormItem({
   canRemove = false,
   idPrefix = "exercise",
   customerId,
+  isExpanded = false,
+  onToggleExpand,
 }: ExerciseFormItemProps) {
   const [pbDialogOpen, setPbDialogOpen] = useState(false)
   const [historyDialogOpen, setHistoryDialogOpen] = useState(false)
@@ -201,14 +204,29 @@ export function ExerciseFormItem({
   }
 
   return (
-    <div className="border rounded-lg p-4 bg-card space-y-3">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <div className="flex h-7 w-7 items-center justify-center rounded-full bg-primary/10 text-primary text-sm font-semibold">
+    <div className="border rounded-lg bg-card">
+      <div 
+        className="flex items-center justify-between p-4 cursor-pointer hover:bg-muted/50 transition-colors"
+        onClick={() => onToggleExpand?.(index)}
+      >
+        <div className="flex items-center gap-3 flex-1">
+          <div className="flex h-7 w-7 items-center justify-center rounded-full bg-primary/10 text-primary text-sm font-semibold shrink-0">
             {index + 1}
           </div>
+          <div className="text-sm font-medium flex-1">
+            {exercise.name || "No exercise selected"}
+          </div>
+          {onToggleExpand && (
+            <div className="flex items-center gap-2">
+              {isExpanded ? (
+                <ChevronUp className="h-4 w-4 text-muted-foreground" />
+              ) : (
+                <ChevronDown className="h-4 w-4 text-muted-foreground" />
+              )}
+            </div>
+          )}
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 ml-2" onClick={(e) => e.stopPropagation()}>
           {customerId && exercise.name.trim() && (
             <>
               <Button
@@ -247,54 +265,8 @@ export function ExerciseFormItem({
         </div>
       </div>
 
-      <div className="space-y-3">
-        <ExerciseAutocomplete
-          id={`${idPrefix}-name-${index}`}
-          label="Exercise Name"
-          value={exercise.name || ""}
-          onChange={(value) => {
-            onUpdate(index, "name", value)
-            // Look up the exercise to get its type when name changes (only if value matches an exercise)
-            if (value && value.trim()) {
-              fetch("/api/admin/exercises")
-                .then(res => res.json())
-                .then(data => {
-                  const matchedExercise = data.exercises?.find((ex: any) => 
-                    ex.display_name.toLowerCase().trim() === value.toLowerCase().trim() || 
-                    ex.name.toLowerCase().trim() === value.toLowerCase().trim()
-                  )
-                  if (matchedExercise && matchedExercise.exercise_type) {
-                    console.log('Found exercise type for', value, ':', matchedExercise.exercise_type)
-                    // Use onUpdateMultiple if available to update both name and type atomically
-                    if (onUpdateMultiple) {
-                      onUpdateMultiple(index, { exercise_type: matchedExercise.exercise_type })
-                    } else {
-                      onUpdate(index, "exercise_type", matchedExercise.exercise_type)
-                    }
-                  }
-                })
-                .catch(err => console.error("Error looking up exercise type:", err))
-            }
-          }}
-          onExerciseSelect={(selectedExercise) => {
-            // When an exercise is selected, update both name and exercise_type
-            if (selectedExercise && selectedExercise.exercise_type) {
-              if (onUpdateMultiple) {
-                onUpdateMultiple(index, { 
-                  exercise_type: selectedExercise.exercise_type,
-                  name: selectedExercise.display_name 
-                })
-              } else {
-                onUpdate(index, "name", selectedExercise.display_name)
-                onUpdate(index, "exercise_type", selectedExercise.exercise_type)
-              }
-            }
-          }}
-          placeholder="e.g., Bench Press"
-          required
-          className="bg-background"
-        />
-
+      {isExpanded && (
+        <div className="space-y-3 px-4 pb-4 pt-0">
         {exercise.exercise_type === "cardio" ? (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <div className="space-y-1.5">
@@ -400,6 +372,7 @@ export function ExerciseFormItem({
           />
         </div>
       </div>
+      )}
 
       {/* Personal Bests Dialog */}
       <Dialog open={pbDialogOpen} onOpenChange={setPbDialogOpen}>

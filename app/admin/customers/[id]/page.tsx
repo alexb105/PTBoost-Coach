@@ -27,6 +27,8 @@ import { WeekView, type Workout as WeekViewWorkout } from "@/components/week-vie
 import { ExerciseFormItem, type ExerciseFormData } from "@/components/exercise-form-item"
 import { WorkoutSummaryView } from "@/components/workout-summary-view"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Command, CommandInput, CommandList, CommandEmpty, CommandGroup, CommandItem } from "@/components/ui/command"
+import { Dumbbell, Activity } from "lucide-react"
 import { useMessageNotifications } from "@/hooks/use-message-notifications"
 import { useLanguage } from "@/contexts/language-context"
 import { LanguageSelector } from "@/components/language-selector"
@@ -187,6 +189,10 @@ export default function CustomerDetailPage() {
   // Workout form state
   const [isWorkoutDialogOpen, setIsWorkoutDialogOpen] = useState(false)
   const [editingWorkout, setEditingWorkout] = useState<Workout | null>(null)
+  const [isExerciseSelectDialogOpen, setIsExerciseSelectDialogOpen] = useState(false)
+  const [availableExercises, setAvailableExercises] = useState<Array<{ id: string; name: string; display_name: string; exercise_type?: "cardio" | "sets"; muscle_groups?: string[] }>>([])
+  const [loadingExercises, setLoadingExercises] = useState(false)
+  const [expandedExerciseIndex, setExpandedExerciseIndex] = useState<number | null>(null)
   const [deleteWorkoutId, setDeleteWorkoutId] = useState<string | null>(null)
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [selectedDate, setSelectedDate] = useState<Date | null>(null)
@@ -1183,7 +1189,7 @@ export default function CustomerDetailPage() {
         title: "",
         description: "",
         date: format(date, "yyyy-MM-dd"),
-        exercises: [{ name: "", sets: "", reps: "", type: "reps" as const, weight: "", notes: "" }],
+        exercises: [],
       })
       setIsWorkoutDialogOpen(true)
     }
@@ -1238,11 +1244,54 @@ export default function CustomerDetailPage() {
     setIsDeleteDialogOpen(true)
   }
 
-  const addExercise = () => {
-    setNewWorkout({
-      ...newWorkout,
-      exercises: [...newWorkout.exercises, { name: "", sets: "", reps: "", type: "reps" as const, weight: "", notes: "" }],
-    })
+  const addExercise = async () => {
+    // Fetch available exercises if not already loaded
+    if (availableExercises.length === 0) {
+      try {
+        setLoadingExercises(true)
+        const response = await fetch("/api/admin/exercises")
+        if (response.ok) {
+          const data = await response.json()
+          setAvailableExercises(data.exercises || [])
+        } else {
+          toast.error("Failed to load exercises")
+          return
+        }
+      } catch (error) {
+        console.error("Error fetching exercises:", error)
+        toast.error("Failed to load exercises")
+        return
+      } finally {
+        setLoadingExercises(false)
+      }
+    }
+    setIsExerciseSelectDialogOpen(true)
+  }
+
+  const handleExerciseSelect = (exerciseId: string) => {
+    const selectedExercise = availableExercises.find(ex => ex.id === exerciseId)
+    if (selectedExercise) {
+      const newExercise: ExerciseFormData = {
+        name: selectedExercise.display_name,
+        exercise_type: selectedExercise.exercise_type || "sets",
+        sets: "",
+        reps: "",
+        type: "reps" as const,
+        weight: "",
+        notes: "",
+      }
+      const validExercises = newWorkout.exercises.filter(ex => ex.name && ex.name.trim())
+      const newIndex = validExercises.length // This will be the index of the new exercise after filtering
+      
+      setNewWorkout({
+        ...newWorkout,
+        exercises: [...newWorkout.exercises, newExercise],
+      })
+      // Expand the newly added exercise
+      setExpandedExerciseIndex(newIndex)
+      setIsExerciseSelectDialogOpen(false)
+      toast.success(`Added ${selectedExercise.display_name}`)
+    }
   }
 
   const removeExercise = (index: number) => {
@@ -1680,7 +1729,7 @@ export default function CustomerDetailPage() {
             <WeekView 
               workouts={workouts} 
               canEdit={true} 
-              onDayClick={(date, workout) => handleDayClick(date, workout)}
+              onDayClick={(date, workout) => handleDayClick(date, workout)} 
               onToggleRestDay={handleToggleRestDay}
             />
 
@@ -1771,48 +1820,192 @@ export default function CustomerDetailPage() {
                   {/* Exercises Section */}
                   <Card className="p-5">
                     <div className="space-y-4">
-                      <div className="flex items-center justify-between mb-4">
-                        <div className="flex items-center gap-2">
-                          <Plus className="h-5 w-5 text-primary" />
-                          <h3 className="text-lg font-semibold">Exercises</h3>
-                        </div>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={addExercise}
-                          className="gap-2"
-                        >
-                          <Plus className="h-4 w-4" />
-                          Add Exercise
-                        </Button>
-                      </div>
-
                       {newWorkout.exercises.length === 0 ? (
                         <div className="text-center py-12 border-2 border-dashed rounded-lg bg-muted/30">
                           <Plus className="h-8 w-8 text-muted-foreground mx-auto mb-3" />
                           <p className="text-sm text-muted-foreground mb-3">No exercises added yet</p>
                             <Button type="button" variant="outline" onClick={addExercise} className="gap-2">
                               <Plus className="h-4 w-4" />
-                              Add First Exercise
+                              Add Exercise
                             </Button>
                         </div>
                       ) : (
                         <div className="space-y-4">
-                          {newWorkout.exercises.map((exercise, index) => (
-                            <ExerciseFormItem
-                              key={index}
-                              exercise={exercise}
-                              index={index}
-                              onUpdate={updateExercise}
-                              onRemove={removeExercise}
-                              canRemove={newWorkout.exercises.length > 1}
-                              idPrefix="exercise"
-                              customerId={customerId}
-                            />
-                          ))}
+                          {newWorkout.exercises
+                            .map((exercise, originalIndex) => ({ exercise, originalIndex }))
+                            .filter(({ exercise }) => exercise.name && exercise.name.trim())
+                            .map(({ exercise, originalIndex }, filteredIndex) => (
+                              <ExerciseFormItem
+                                key={originalIndex}
+                                exercise={exercise}
+                                index={filteredIndex}
+                                onUpdate={(idx, field, value) => {
+                                  // Map filtered index back to original index
+                                  const validExercises = newWorkout.exercises
+                                    .map((ex, i) => ({ ex, i }))
+                                    .filter(({ ex }) => ex.name && ex.name.trim())
+                                  if (validExercises[idx]) {
+                                    updateExercise(validExercises[idx].i, field, value)
+                                  }
+                                }}
+                                onRemove={(idx) => {
+                                  // Map filtered index back to original index
+                                  const validExercises = newWorkout.exercises
+                                    .map((ex, i) => ({ ex, i }))
+                                    .filter(({ ex }) => ex.name && ex.name.trim())
+                                  if (validExercises[idx]) {
+                                    removeExercise(validExercises[idx].i)
+                                  }
+                                }}
+                                canRemove={newWorkout.exercises.filter(ex => ex.name && ex.name.trim()).length > 1}
+                                idPrefix="exercise"
+                                customerId={customerId}
+                                isExpanded={expandedExerciseIndex === filteredIndex}
+                                onToggleExpand={(idx) => {
+                                  setExpandedExerciseIndex(expandedExerciseIndex === idx ? null : idx)
+                                }}
+                              />
+                            ))}
+                          <Button
+                            type="button"
+                            variant="outline"
+                            onClick={addExercise}
+                            className="w-full gap-2"
+                          >
+                            <Plus className="h-4 w-4" />
+                            Add Exercise
+                          </Button>
                         </div>
                       )}
+
+                      {/* Exercise Selection Dialog */}
+                      <Dialog open={isExerciseSelectDialogOpen} onOpenChange={setIsExerciseSelectDialogOpen}>
+                        <DialogContent className="max-w-2xl">
+                          <DialogHeader>
+                            <DialogTitle className="flex items-center gap-2">
+                              <Dumbbell className="h-5 w-5 text-primary" />
+                              Select Exercise
+                            </DialogTitle>
+                            <DialogDescription>
+                              Search and choose an exercise to add to this workout
+                            </DialogDescription>
+                          </DialogHeader>
+                          <Command className="rounded-lg border">
+                            <CommandInput 
+                              placeholder="Search exercises by name or muscle group..." 
+                              className="h-12"
+                            />
+                            <CommandList className="max-h-[400px]">
+                              {loadingExercises ? (
+                                <div className="flex items-center justify-center py-12">
+                                  <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                                </div>
+                              ) : availableExercises.length === 0 ? (
+                                <CommandEmpty>
+                                  <div className="py-8 text-center">
+                                    <Dumbbell className="h-12 w-12 text-muted-foreground mx-auto mb-3 opacity-50" />
+                                    <p className="text-sm text-muted-foreground">No exercises found</p>
+                                    <p className="text-xs text-muted-foreground mt-1">Create exercises in the Exercises page first</p>
+                                  </div>
+                                </CommandEmpty>
+                              ) : (
+                                <>
+                                  <CommandGroup heading="Sets Exercises">
+                                    {availableExercises
+                                      .filter(ex => !ex.exercise_type || ex.exercise_type === "sets")
+                                      .map((exercise) => (
+                                        <CommandItem
+                                          key={exercise.id}
+                                          value={`${exercise.display_name} ${exercise.name} ${exercise.muscle_groups?.join(" ") || ""}`}
+                                          onSelect={() => handleExerciseSelect(exercise.id)}
+                                          className="cursor-pointer py-3"
+                                        >
+                                          <div className="flex items-center justify-between w-full">
+                                            <div className="flex items-center gap-3 flex-1 min-w-0">
+                                              <Dumbbell className="h-4 w-4 text-primary shrink-0" />
+                                              <div className="flex-1 min-w-0">
+                                                <div className="font-medium truncate">{exercise.display_name}</div>
+                                                {exercise.muscle_groups && exercise.muscle_groups.length > 0 && (
+                                                  <div className="flex flex-wrap gap-1 mt-1">
+                                                    {exercise.muscle_groups.slice(0, 3).map((group) => (
+                                                      <Badge 
+                                                        key={group} 
+                                                        variant="secondary" 
+                                                        className="text-xs px-1.5 py-0 h-5"
+                                                      >
+                                                        {group}
+                                                      </Badge>
+                                                    ))}
+                                                    {exercise.muscle_groups.length > 3 && (
+                                                      <Badge variant="secondary" className="text-xs px-1.5 py-0 h-5">
+                                                        +{exercise.muscle_groups.length - 3}
+                                                      </Badge>
+                                                    )}
+                                                  </div>
+                                                )}
+                                              </div>
+                                            </div>
+                                            <Badge 
+                                              variant="outline" 
+                                              className="ml-2 shrink-0 bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200 border-purple-300 dark:border-purple-700"
+                                            >
+                                              Sets
+                                            </Badge>
+                                          </div>
+                                        </CommandItem>
+                                      ))}
+                                  </CommandGroup>
+                                  <CommandGroup heading="Cardio Exercises">
+                                    {availableExercises
+                                      .filter(ex => ex.exercise_type === "cardio")
+                                      .map((exercise) => (
+                                        <CommandItem
+                                          key={exercise.id}
+                                          value={`${exercise.display_name} ${exercise.name} ${exercise.muscle_groups?.join(" ") || ""}`}
+                                          onSelect={() => handleExerciseSelect(exercise.id)}
+                                          className="cursor-pointer py-3"
+                                        >
+                                          <div className="flex items-center justify-between w-full">
+                                            <div className="flex items-center gap-3 flex-1 min-w-0">
+                                              <Activity className="h-4 w-4 text-primary shrink-0" />
+                                              <div className="flex-1 min-w-0">
+                                                <div className="font-medium truncate">{exercise.display_name}</div>
+                                                {exercise.muscle_groups && exercise.muscle_groups.length > 0 && (
+                                                  <div className="flex flex-wrap gap-1 mt-1">
+                                                    {exercise.muscle_groups.slice(0, 3).map((group) => (
+                                                      <Badge 
+                                                        key={group} 
+                                                        variant="secondary" 
+                                                        className="text-xs px-1.5 py-0 h-5"
+                                                      >
+                                                        {group}
+                                                      </Badge>
+                                                    ))}
+                                                    {exercise.muscle_groups.length > 3 && (
+                                                      <Badge variant="secondary" className="text-xs px-1.5 py-0 h-5">
+                                                        +{exercise.muscle_groups.length - 3}
+                                                      </Badge>
+                                                    )}
+                                                  </div>
+                                                )}
+                                              </div>
+                                            </div>
+                                            <Badge 
+                                              variant="outline" 
+                                              className="ml-2 shrink-0 bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 border-blue-300 dark:border-blue-700"
+                                            >
+                                              Cardio
+                                            </Badge>
+                                          </div>
+                                        </CommandItem>
+                                      ))}
+                                  </CommandGroup>
+                                </>
+                              )}
+                            </CommandList>
+                          </Command>
+                        </DialogContent>
+                      </Dialog>
                     </div>
                   </Card>
 

@@ -56,7 +56,8 @@ export async function PUT(
       default_intensity,
       image_url,
       video_url,
-      description
+      description,
+      muscle_groups
     } = await request.json()
 
     if (!name || !name.trim()) {
@@ -109,6 +110,15 @@ export async function PUT(
     }
     if (description !== undefined) {
       updateData.description = description && description.trim() ? description.trim() : null
+    }
+    
+    // Add muscle groups if provided
+    if (muscle_groups !== undefined) {
+      // Ensure it's an array and filter out empty strings
+      const groups = Array.isArray(muscle_groups) 
+        ? muscle_groups.filter(g => g && g.trim())
+        : []
+      updateData.muscle_groups = groups.length > 0 ? groups : []
     }
 
     console.log('Updating exercise with data:', JSON.stringify(updateData, null, 2))

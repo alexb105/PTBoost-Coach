@@ -88,7 +88,8 @@ export async function POST(request: NextRequest) {
       default_intensity,
       image_url,
       video_url,
-      description
+      description,
+      muscle_groups
     } = await request.json()
 
     if (!name || !name.trim()) {
@@ -139,6 +140,15 @@ export async function POST(request: NextRequest) {
     }
     if (description !== undefined) {
       insertData.description = description && description.trim() ? description.trim() : null
+    }
+    
+    // Add muscle groups if provided
+    if (muscle_groups !== undefined) {
+      // Ensure it's an array and filter out empty strings
+      const groups = Array.isArray(muscle_groups) 
+        ? muscle_groups.filter(g => g && g.trim())
+        : []
+      insertData.muscle_groups = groups.length > 0 ? groups : []
     }
 
     console.log('Inserting exercise with data:', JSON.stringify(insertData, null, 2))

@@ -10,7 +10,8 @@ import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Shield, Plus, Loader2, Edit, Trash2, Dumbbell } from "lucide-react"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Shield, Plus, Loader2, Edit, Trash2, Dumbbell, Search } from "lucide-react"
 import { toast } from "sonner"
 import {
   AlertDialog,
@@ -44,6 +45,7 @@ interface Exercise {
   image_url?: string | null
   video_url?: string | null
   description?: string | null
+  muscle_groups?: string[]
   created_at: string
   updated_at: string
 }
@@ -51,7 +53,9 @@ interface Exercise {
 export default function ExercisesPage() {
   const router = useRouter()
   const [exercises, setExercises] = useState<Exercise[]>([])
+  const [filteredExercises, setFilteredExercises] = useState<Exercise[]>([])
   const [loading, setLoading] = useState(true)
+  const [searchQuery, setSearchQuery] = useState("")
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [editingExercise, setEditingExercise] = useState<Exercise | null>(null)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
@@ -63,7 +67,26 @@ export default function ExercisesPage() {
     image_url: "",
     video_url: "",
     description: "",
+    muscle_groups: [] as string[],
   })
+
+  // Available muscle groups
+  const muscleGroups = [
+    "Chest",
+    "Back",
+    "Shoulders",
+    "Biceps",
+    "Triceps",
+    "Legs",
+    "Quadriceps",
+    "Hamstrings",
+    "Glutes",
+    "Calves",
+    "Core",
+    "Abs",
+    "Obliques",
+    "Cardio",
+  ]
 
   // Check admin session
   useEffect(() => {
@@ -93,6 +116,7 @@ export default function ExercisesPage() {
 
       const data = await response.json()
       setExercises(data.exercises || [])
+      setFilteredExercises(data.exercises || [])
     } catch (error) {
       console.error("Error fetching exercises:", error)
       toast.error("Failed to load exercises")
@@ -100,6 +124,22 @@ export default function ExercisesPage() {
       setLoading(false)
     }
   }
+
+  // Filter exercises based on search query
+  useEffect(() => {
+    if (!searchQuery.trim()) {
+      setFilteredExercises(exercises)
+      return
+    }
+
+    const query = searchQuery.toLowerCase().trim()
+    const filtered = exercises.filter((exercise) => {
+      const displayName = exercise.display_name?.toLowerCase() || ""
+      const normalizedName = exercise.name?.toLowerCase() || ""
+      return displayName.includes(query) || normalizedName.includes(query)
+    })
+    setFilteredExercises(filtered)
+  }, [searchQuery, exercises])
 
   const handleSaveExercise = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -140,6 +180,13 @@ export default function ExercisesPage() {
       
       // Add description
       if (exerciseForm.description) payload.description = exerciseForm.description.trim() || null
+      
+      // Add muscle groups
+      if (exerciseForm.muscle_groups && exerciseForm.muscle_groups.length > 0) {
+        payload.muscle_groups = exerciseForm.muscle_groups
+      } else {
+        payload.muscle_groups = []
+      }
 
       const response = await fetch(url, {
         method,
@@ -161,6 +208,7 @@ export default function ExercisesPage() {
         image_url: "",
         video_url: "",
         description: "",
+        muscle_groups: [],
       })
       fetchExercises()
     } catch (error: any) {
@@ -177,6 +225,7 @@ export default function ExercisesPage() {
       image_url: exercise.image_url || "",
       video_url: exercise.video_url || "",
       description: exercise.description || "",
+      muscle_groups: exercise.muscle_groups || [],
     })
     setIsDialogOpen(true)
   }
@@ -218,6 +267,7 @@ export default function ExercisesPage() {
       image_url: "",
       video_url: "",
       description: "",
+      muscle_groups: [],
     })
   }
 
@@ -248,24 +298,26 @@ export default function ExercisesPage() {
 
       {/* Main Content */}
       <main className="container mx-auto px-4 py-8">
-        <div className="mb-6 flex items-center justify-between">
-          <div>
-            <h2 className="text-2xl font-semibold">Exercises</h2>
-            <p className="text-sm text-muted-foreground">
-              Manage exercises that can be used across all clients. Each client has their own PB data.
-            </p>
-          </div>
+        <div className="mb-6 space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-2xl font-semibold">Exercises</h2>
+              <p className="text-sm text-muted-foreground">
+                Manage exercises that can be used across all clients. Each client has their own PB data.
+              </p>
+            </div>
           <Dialog open={isDialogOpen} onOpenChange={(open) => {
             if (open) {
               setEditingExercise(null)
-    setExerciseForm({
-      name: "",
-      exercise_type: "sets",
+              setExerciseForm({
+                name: "",
+                exercise_type: "sets",
                 image_url: "",
                 video_url: "",
                 description: "",
-    })
-  }
+                muscle_groups: [],
+              })
+            }
             setIsDialogOpen(open)
           }}>
             <DialogTrigger asChild>
@@ -361,6 +413,42 @@ export default function ExercisesPage() {
                   </p>
                 </div>
 
+                <div className="space-y-2">
+                  <Label>Muscle Groups (Optional)</Label>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 p-4 border rounded-lg bg-background">
+                    {muscleGroups.map((group) => (
+                      <div key={group} className="flex items-center space-x-2">
+                        <Checkbox
+                          id={`muscle-${group}`}
+                          checked={exerciseForm.muscle_groups?.includes(group) || false}
+                          onCheckedChange={(checked) => {
+                            if (checked) {
+                              setExerciseForm({
+                                ...exerciseForm,
+                                muscle_groups: [...(exerciseForm.muscle_groups || []), group],
+                              })
+                            } else {
+                              setExerciseForm({
+                                ...exerciseForm,
+                                muscle_groups: (exerciseForm.muscle_groups || []).filter(g => g !== group),
+                              })
+                            }
+                          }}
+                        />
+                        <label
+                          htmlFor={`muscle-${group}`}
+                          className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                        >
+                          {group}
+                        </label>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Select the muscle groups targeted by this exercise
+                  </p>
+                </div>
+
                 <div className="flex justify-end gap-2">
                   <Button type="button" variant="outline" onClick={handleDialogClose}>
                     Cancel
@@ -372,6 +460,19 @@ export default function ExercisesPage() {
               </form>
             </DialogContent>
           </Dialog>
+          </div>
+
+          {/* Search Bar */}
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              type="text"
+              placeholder="Search exercises by name..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-9"
+            />
+          </div>
         </div>
 
         {/* Exercises Table */}
@@ -400,19 +501,25 @@ export default function ExercisesPage() {
                   Add Your First Exercise
                 </Button>
               </div>
+            ) : filteredExercises.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12">
+                <Search className="h-12 w-12 text-muted-foreground mb-4" />
+                <p className="text-muted-foreground mb-2">No exercises found</p>
+                <p className="text-sm text-muted-foreground">Try adjusting your search query</p>
+              </div>
             ) : (
               <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead>Display Name</TableHead>
                     <TableHead>Type</TableHead>
-                    <TableHead>Normalized Name</TableHead>
+                    <TableHead>Muscle Groups</TableHead>
                     <TableHead>Created</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {exercises.map((exercise) => (
+                  {filteredExercises.map((exercise) => (
                     <TableRow key={exercise.id}>
                       <TableCell className="font-medium">
                         {exercise.display_name}
@@ -426,8 +533,21 @@ export default function ExercisesPage() {
                           {exercise.exercise_type === "cardio" ? "Cardio" : "Sets"}
                         </span>
                       </TableCell>
-                      <TableCell className="text-muted-foreground text-sm font-mono">
-                        {exercise.name}
+                      <TableCell>
+                        {exercise.muscle_groups && exercise.muscle_groups.length > 0 ? (
+                          <div className="flex flex-wrap gap-1">
+                            {exercise.muscle_groups.map((group) => (
+                              <span
+                                key={group}
+                                className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-muted text-muted-foreground"
+                              >
+                                {group}
+                              </span>
+                            ))}
+                          </div>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">—</span>
+                        )}
                       </TableCell>
                       <TableCell className="text-muted-foreground">
                         {new Date(exercise.created_at).toLocaleDateString()}
