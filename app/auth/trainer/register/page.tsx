@@ -7,15 +7,17 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Dumbbell, ArrowLeft, Loader2, Check, Users, Calendar, MessageSquare, TrendingUp } from "lucide-react"
+import { Dumbbell, ArrowLeft, Loader2, Check, Users, Calendar, MessageSquare, TrendingUp, Zap, Shield, Clock, Sparkles } from "lucide-react"
 import Link from "next/link"
 import { toast } from "sonner"
 
 const FEATURES = [
-  { icon: Users, text: "Manage up to 3 clients free" },
-  { icon: Calendar, text: "Create custom workout plans" },
-  { icon: MessageSquare, text: "In-app client messaging" },
-  { icon: TrendingUp, text: "Track client progress" },
+  { icon: Zap, text: "Get started instantly - no credit card required" },
+  { icon: Users, text: "Build and scale your client base effortlessly" },
+  { icon: Calendar, text: "Create unlimited custom workout plans" },
+  { icon: MessageSquare, text: "Stay connected with in-app messaging" },
+  { icon: TrendingUp, text: "Track progress with detailed analytics" },
+  { icon: Shield, text: "Enterprise-grade security & data protection" },
 ]
 
 export default function TrainerRegisterPage() {
@@ -86,27 +88,43 @@ export default function TrainerRegisterPage() {
               <Dumbbell className="h-7 w-7 text-white" />
             </div>
             <h1 className="text-4xl font-bold text-white mb-3">
-              Grow Your <span className="text-emerald-400">Personal Training</span> Business
+              Scale Your <span className="text-emerald-400">Personal Training</span> Business
             </h1>
-            <p className="text-lg text-slate-400">
-              Join thousands of trainers using PT Boost to manage clients, create workouts, and track progress.
+            <p className="text-lg text-slate-400 mb-2">
+              The all-in-one platform trusted by thousands of trainers to grow their business, engage clients, and deliver results.
             </p>
+            <div className="flex items-center gap-2 text-emerald-400 text-sm font-medium">
+              <Sparkles className="h-4 w-4" />
+              <span>Start free • Upgrade anytime • Cancel anytime</span>
+            </div>
           </div>
 
-          <div className="space-y-4">
+          <div className="space-y-3">
             {FEATURES.map((feature, index) => (
-              <div key={index} className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-400">
+              <div key={index} className="flex items-start gap-3 group">
+                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-400 group-hover:bg-emerald-500/20 transition-colors shrink-0">
                   <feature.icon className="h-5 w-5" />
                 </div>
-                <span className="text-slate-300">{feature.text}</span>
+                <span className="text-slate-300 pt-2">{feature.text}</span>
               </div>
             ))}
           </div>
 
-          <div className="mt-10 p-6 rounded-xl bg-slate-800/50 border border-slate-700">
-            <p className="text-slate-300 italic">
-              &ldquo;PT Boost has transformed how I manage my clients. I&apos;ve grown from 5 to 25 clients in just 3 months!&rdquo;
+          <div className="mt-10 p-6 rounded-xl bg-gradient-to-br from-emerald-500/10 to-teal-600/10 border border-emerald-500/20">
+            <div className="flex items-start gap-2 mb-3">
+              <div className="flex -space-x-1">
+                {[1, 2, 3, 4, 5].map((i) => (
+                  <div key={i} className="h-5 w-5 rounded-full bg-emerald-500 border-2 border-slate-900" />
+                ))}
+              </div>
+              <div className="flex items-center gap-1">
+                {[1, 2, 3, 4, 5].map((i) => (
+                  <Sparkles key={i} className="h-3 w-3 text-emerald-400 fill-emerald-400" />
+                ))}
+              </div>
+            </div>
+            <p className="text-slate-200 italic text-base leading-relaxed">
+              &ldquo;PT Boost has transformed how I manage my clients. I&apos;ve grown from 5 to 25 clients in just 3 months while saving 10+ hours per week on admin tasks!&rdquo;
             </p>
             <div className="mt-4 flex items-center gap-3">
               <div className="h-10 w-10 rounded-full bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center text-white font-semibold">
@@ -114,8 +132,24 @@ export default function TrainerRegisterPage() {
               </div>
               <div>
                 <p className="text-white font-medium">James Davis</p>
-                <p className="text-sm text-slate-500">Personal Trainer, London</p>
+                <p className="text-sm text-slate-400">Personal Trainer, London</p>
               </div>
+            </div>
+          </div>
+          
+          {/* Stats */}
+          <div className="mt-8 grid grid-cols-3 gap-4">
+            <div className="text-center">
+              <div className="text-2xl font-bold text-emerald-400">10K+</div>
+              <div className="text-xs text-slate-400 mt-1">Active Trainers</div>
+            </div>
+            <div className="text-center">
+              <div className="text-2xl font-bold text-emerald-400">50K+</div>
+              <div className="text-xs text-slate-400 mt-1">Clients Managed</div>
+            </div>
+            <div className="text-center">
+              <div className="text-2xl font-bold text-emerald-400">4.9★</div>
+              <div className="text-xs text-slate-400 mt-1">Average Rating</div>
             </div>
           </div>
         </div>
@@ -143,9 +177,9 @@ export default function TrainerRegisterPage() {
 
           <Card className="border-slate-800 bg-slate-900/80 shadow-2xl shadow-black/50 backdrop-blur-xl">
             <CardHeader className="space-y-1 pb-4">
-              <CardTitle className="text-2xl font-bold tracking-tight text-white">Create Your Account</CardTitle>
+              <CardTitle className="text-2xl font-bold tracking-tight text-white">Start Your Free Account</CardTitle>
               <CardDescription className="text-slate-400">
-                Start your 14-day free trial. No credit card required.
+                Join thousands of trainers. No credit card required. Upgrade when you&apos;re ready to scale.
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -153,12 +187,12 @@ export default function TrainerRegisterPage() {
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="fullName" className="text-sm font-medium text-slate-300">
-                      Full Name
+                      First Name
                     </Label>
                     <Input
                       id="fullName"
                       type="text"
-                      placeholder="John Smith"
+                      placeholder="John"
                       value={formData.fullName}
                       onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
                       required
@@ -238,8 +272,8 @@ export default function TrainerRegisterPage() {
                     </>
                   ) : (
                     <>
-                      <Check className="mr-2 h-4 w-4" />
-                      Start Free Trial
+                      <Zap className="mr-2 h-4 w-4" />
+                      Create Free Account
                     </>
                   )}
                 </Button>
