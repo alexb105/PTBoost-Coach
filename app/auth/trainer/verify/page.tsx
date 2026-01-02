@@ -20,10 +20,17 @@ function VerifyEmailContent() {
   const [resending, setResending] = useState(false)
 
   useEffect(() => {
-    // Get email from URL params if available
+    // Get email and code from URL params if available
     const emailParam = searchParams.get('email')
+    const codeParam = searchParams.get('code')
+    
     if (emailParam) {
       setEmail(emailParam)
+    }
+    
+    // Auto-fill code in development mode
+    if (codeParam) {
+      setCode(codeParam)
     }
   }, [searchParams])
 
