@@ -9,7 +9,7 @@ If your emails are being sent but the content is blank (showing `{{variable}}` i
 ### Step 1: Configure Template Settings in EmailJS
 
 1. Go to **EmailJS Dashboard** → **Email Templates**
-2. Open your template (e.g., `template_sd9zstb` for verification or your admin notification template)
+2. Open your template (e.g., `template_xxxxx` for verification or your admin notification template)
 3. Go to the **"Content"** tab
 4. Click **"Edit Content"** (pencil icon)
 
@@ -88,4 +88,5 @@ After configuring, test by:
 3. Triggering a subscription event (for admin notification)
 
 Check server logs for detailed error messages if emails still don't work.
+
 
