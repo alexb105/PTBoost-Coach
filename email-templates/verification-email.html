@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Verify Your Email - CoachaPro</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #f3f4f6;">
+  <table role="presentation" style="width: 100%; border-collapse: collapse; background-color: #f3f4f6;">
+    <tr>
+      <td style="padding: 40px 20px;">
+        <table role="presentation" style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 12px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); border-collapse: collapse;">
+          <!-- Header -->
+          <tr>
+            <td style="padding: 40px 40px 20px; text-align: center; background: linear-gradient(135deg, #10b981 0%, #059669 100%); border-radius: 12px 12px 0 0;">
+              <h1 style="margin: 0; color: #ffffff; font-size: 32px; font-weight: 700; letter-spacing: -0.5px;">
+                Welcome to CoachaPro!
+              </h1>
+            </td>
+          </tr>
+          
+          <!-- Content -->
+          <tr>
+            <td style="padding: 40px;">
+              <p style="margin: 0 0 20px; color: #374151; font-size: 16px; line-height: 1.6;">
+                Hi {{to_name}},
+              </p>
+              
+              <p style="margin: 0 0 30px; color: #374151; font-size: 16px; line-height: 1.6;">
+                Thank you for signing up! Please verify your email address by entering this verification code:
+              </p>
+              
+              <!-- Verification Code Box -->
+              <div style="background: linear-gradient(135deg, #1f2937 0%, #111827 100%); padding: 30px; text-align: center; border-radius: 12px; margin: 30px 0; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);">
+                <h2 style="margin: 0; color: #10b981; font-size: 42px; font-weight: 700; letter-spacing: 8px; font-family: 'Courier New', monospace;">
+                  {{verification_code}}
+                </h2>
+              </div>
+              
+              <p style="margin: 30px 0 20px; color: #6b7280; font-size: 14px; line-height: 1.6; text-align: center;">
+                This code will expire in 24 hours.
+              </p>
+              
+              <p style="margin: 0 0 30px; color: #374151; font-size: 16px; line-height: 1.6;">
+                If you didn't create an account with {{app_name}}, please ignore this email.
+              </p>
+              
+              <!-- Divider -->
+              <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 40px 0;">
+              
+              <!-- Footer -->
+              <p style="margin: 0; color: #9ca3af; font-size: 12px; text-align: center; line-height: 1.6;">
+                © {{app_name}} - Personal Training Platform<br>
+                <a href="{{app_url}}" style="color: #10b981; text-decoration: none;">Visit our website</a>
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+

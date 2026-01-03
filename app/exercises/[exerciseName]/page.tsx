@@ -65,7 +65,7 @@ export default function ExercisePage() {
     try {
       setLoading(true)
       const encodedName = encodeURIComponent(exerciseName)
-      const response = await fetch(`/api/customer/exercises/${encodedName}`)
+      const response = await fetch(`/api/customer/exercises/${encodedName}`, { credentials: 'include' })
       
       if (!response.ok) {
         throw new Error("Failed to fetch exercise data")

@@ -7,10 +7,21 @@ function Input({ className, type, ...props }: React.ComponentProps<'input'>) {
     <input
       type={type}
       data-slot="input"
+      // iOS-friendly: prevent auto-capitalization and auto-correction for certain input types
+      autoCapitalize={type === 'email' ? 'none' : undefined}
+      autoCorrect={type === 'email' || type === 'password' ? 'off' : undefined}
+      spellCheck={type === 'email' || type === 'password' ? false : undefined}
       className={cn(
-        'file:text-foreground placeholder:text-muted-foreground selection:bg-primary selection:text-primary-foreground dark:bg-input/30 border-input h-9 w-full min-w-0 rounded-md border bg-transparent px-3 py-1 text-base shadow-xs transition-[color,box-shadow] outline-none file:inline-flex file:h-7 file:border-0 file:bg-transparent file:text-sm file:font-medium disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 md:text-sm',
+        // Base styles - text-base (16px) prevents iOS zoom on focus
+        'file:text-foreground placeholder:text-muted-foreground selection:bg-primary selection:text-primary-foreground dark:bg-input/30 border-input w-full min-w-0 rounded-md border bg-transparent px-3 py-2 text-base shadow-xs transition-[color,box-shadow] outline-none file:inline-flex file:h-7 file:border-0 file:bg-transparent file:text-sm file:font-medium disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50',
+        // iOS-friendly: minimum touch target height (44px)
+        'min-h-[44px]',
+        // Focus styles
         'focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]',
+        // Error styles
         'aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive',
+        // iOS-specific: remove default iOS styling
+        'appearance-none',
         className,
       )}
       {...props}

@@ -56,6 +56,12 @@ export async function checkAdminSession(request: NextRequest): Promise<AdminSess
         return null
       }
       
+      // Check if email is verified
+      if (!trainer.email_verified) {
+        console.warn('Trainer email not verified:', trainer.email)
+        return null
+      }
+      
       // Check subscription status
       if (trainer.subscription_status === 'expired') {
         return null

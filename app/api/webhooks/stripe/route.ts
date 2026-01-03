@@ -2,12 +2,13 @@ import { NextRequest, NextResponse } from 'next/server'
 import Stripe from 'stripe'
 import { createServerClient } from '@/lib/supabase'
 import { stripe, getPlanFromPriceId, TIER_DETAILS } from '@/lib/stripe'
+import { sendAdminNotificationEmail } from '@/lib/emailjs'
 
 // Disable body parsing, we need the raw body for signature verification
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-// Helper function to send admin notification emails
+// Helper function to send admin notification emails using EmailJS
 async function sendAdminNotification({
   subject,
   message,
@@ -25,33 +26,12 @@ async function sendAdminNotification({
     return
   }
 
-  // Log notification for now - implement actual email sending based on your email provider
-  console.log('📧 Admin Notification:', {
-    to: adminEmail,
+  await sendAdminNotificationEmail({
+    to_email: adminEmail,
     subject,
     message,
-    trainerEmail,
+    trainer_email: trainerEmail,
   })
-
-  // If using Resend, SendGrid, or another email service, add the implementation here
-  // Example with Resend:
-  // try {
-  //   await fetch('https://api.resend.com/emails', {
-  //     method: 'POST',
-  //     headers: {
-  //       'Authorization': `Bearer ${process.env.RESEND_API_KEY}`,
-  //       'Content-Type': 'application/json',
-  //     },
-  //     body: JSON.stringify({
-  //       from: 'noreply@yourdomain.com',
-  //       to: adminEmail,
-  //       subject,
-  //       html: `<p>${message}</p><p>Trainer Email: ${trainerEmail}</p>`,
-  //     }),
-  //   })
-  // } catch (error) {
-  //   console.error('Failed to send admin notification:', error)
-  // }
 }
 
 // GET endpoint to verify webhook is accessible

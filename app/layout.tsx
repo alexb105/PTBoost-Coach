@@ -18,17 +18,27 @@ export const metadata: Metadata = {
   viewport: {
     width: "device-width",
     initialScale: 1,
-    maximumScale: 5,
-    userScalable: true,
+    maximumScale: 1, // Prevent zoom on iOS for better UX
+    userScalable: false, // Prevent double-tap zoom
+    viewportFit: "cover", // Support notch/safe areas
   },
   themeColor: [
     { media: "(prefers-color-scheme: light)", color: "#ffffff" },
-    { media: "(prefers-color-scheme: dark)", color: "#000000" },
+    { media: "(prefers-color-scheme: dark)", color: "#1a1a2e" },
   ],
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
     title: "coachapro",
+    startupImage: [
+      {
+        url: "/apple-icon.png",
+        media: "(device-width: 320px) and (device-height: 568px) and (-webkit-device-pixel-ratio: 2)",
+      },
+    ],
+  },
+  formatDetection: {
+    telephone: false, // Prevent auto-linking phone numbers
   },
   icons: {
     icon: [
@@ -45,7 +55,15 @@ export const metadata: Metadata = {
         type: "image/svg+xml",
       },
     ],
-    apple: "/apple-icon.png",
+    apple: [
+      { url: "/apple-icon.png" },
+      { url: "/apple-icon.png", sizes: "180x180", type: "image/png" },
+    ],
+  },
+  other: {
+    "mobile-web-app-capable": "yes",
+    "apple-mobile-web-app-capable": "yes",
+    "apple-mobile-web-app-status-bar-style": "black-translucent",
   },
 }
 
@@ -55,14 +73,23 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="en">
-      <body className={`font-sans antialiased`}>
+    <html lang="en" className="h-full">
+      <head>
+        {/* iOS-specific meta tags */}
+        <meta name="format-detection" content="telephone=no" />
+        <meta name="format-detection" content="date=no" />
+        <meta name="format-detection" content="address=no" />
+        <meta name="format-detection" content="email=no" />
+      </head>
+      <body className={`font-sans antialiased h-full overflow-hidden`}>
         <BrandingProvider>
           <LanguageProvider>
-            {children}
-            <NavigationWrapper />
+            <div className="h-full overflow-y-auto overflow-x-hidden overscroll-contain">
+              {children}
+              <NavigationWrapper />
+            </div>
             <Analytics />
-            <Toaster />
+            <Toaster position="top-center" />
           </LanguageProvider>
         </BrandingProvider>
       </body>

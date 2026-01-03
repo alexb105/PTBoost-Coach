@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{subject}} - CoachaPro Admin</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #f3f4f6;">
+  <table role="presentation" style="width: 100%; border-collapse: collapse; background-color: #f3f4f6;">
+    <tr>
+      <td style="padding: 40px 20px;">
+        <table role="presentation" style="max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 12px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1); border-collapse: collapse;">
+          <!-- Header -->
+          <tr>
+            <td style="padding: 30px 40px; text-align: center; background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%); border-radius: 12px 12px 0 0;">
+              <h1 style="margin: 0; color: #ffffff; font-size: 24px; font-weight: 700; letter-spacing: -0.5px;">
+                🔔 Admin Notification
+              </h1>
+            </td>
+          </tr>
+          
+          <!-- Content -->
+          <tr>
+            <td style="padding: 40px;">
+              <!-- Subject -->
+              <div style="background-color: #f9fafb; padding: 20px; border-radius: 8px; margin-bottom: 30px; border-left: 4px solid #6366f1;">
+                <h2 style="margin: 0 0 10px; color: #1f2937; font-size: 20px; font-weight: 600;">
+                  {{subject}}
+                </h2>
+              </div>
+              
+              <!-- Message -->
+              <div style="margin-bottom: 30px;">
+                <p style="margin: 0 0 20px; color: #374151; font-size: 16px; line-height: 1.6; white-space: pre-wrap;">
+                  {{message}}
+                </p>
+              </div>
+              
+              <!-- Trainer Info -->
+              <div style="background-color: #f9fafb; padding: 20px; border-radius: 8px; margin-bottom: 30px;">
+                <p style="margin: 0 0 8px; color: #6b7280; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">
+                  Related Trainer
+                </p>
+                <p style="margin: 0; color: #1f2937; font-size: 16px; font-weight: 500;">
+                  📧 {{trainer_email}}
+                </p>
+              </div>
+              
+              <!-- Divider -->
+              <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 40px 0;">
+              
+              <!-- Footer -->
+              <p style="margin: 0; color: #9ca3af; font-size: 12px; text-align: center; line-height: 1.6;">
+                This is an automated notification from CoachaPro Admin System<br>
+                Sent to: {{to_email}}
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+

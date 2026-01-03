@@ -10,6 +10,14 @@ const Toaster = ({ ...props }: ToasterProps) => {
     <Sonner
       theme={theme as ToasterProps['theme']}
       className="toaster group"
+      // iOS-friendly: position at top to avoid keyboard, respect safe areas
+      position="top-center"
+      // Increase touch target and add safe area offset
+      offset="max(16px, env(safe-area-inset-top, 16px))"
+      // Longer duration for mobile users
+      duration={4000}
+      // Close on swipe for iOS-like feel
+      closeButton
       style={
         {
           '--normal-bg': 'var(--popover)',
@@ -17,6 +25,10 @@ const Toaster = ({ ...props }: ToasterProps) => {
           '--normal-border': 'var(--border)',
         } as React.CSSProperties
       }
+      toastOptions={{
+        // iOS-friendly: larger text and padding
+        className: 'text-base py-4 px-4',
+      }}
       {...props}
     />
   )

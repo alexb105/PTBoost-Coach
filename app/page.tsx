@@ -22,7 +22,7 @@ export default function SessionsPage() {
   const fetchWorkouts = async () => {
     try {
       setLoading(true)
-      const response = await fetch("/api/customer/workouts")
+      const response = await fetch("/api/customer/workouts", { credentials: 'include' })
       
       if (response.status === 401) {
         // User is not authenticated, redirect to login
@@ -58,6 +58,7 @@ export default function SessionsPage() {
     try {
       const response = await fetch(`/api/customer/workouts/${workoutId}/complete`, {
         method: "POST",
+        credentials: 'include',
       })
 
       if (!response.ok) {
@@ -88,6 +89,7 @@ export default function SessionsPage() {
     try {
       const response = await fetch(`/api/customer/workouts/${workoutId}/uncomplete`, {
         method: "POST",
+        credentials: 'include',
       })
 
       if (!response.ok) {
@@ -117,6 +119,7 @@ export default function SessionsPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ rating, bestSet }),
+        credentials: 'include',
       })
 
       if (!response.ok) {
@@ -140,7 +143,7 @@ export default function SessionsPage() {
         
         // Update selected workout from refreshed list
         if (selectedWorkout && selectedWorkout.id === workoutId) {
-          const refreshedWorkouts = await fetch("/api/customer/workouts").then(r => r.json())
+          const refreshedWorkouts = await fetch("/api/customer/workouts", { credentials: 'include' }).then(r => r.json())
           const updatedWorkout = refreshedWorkouts.workouts?.find((w: any) => w.id === workoutId)
           if (updatedWorkout) {
             setSelectedWorkout(updatedWorkout)
@@ -157,6 +160,7 @@ export default function SessionsPage() {
     try {
       const response = await fetch(`/api/customer/workouts/${workoutId}/exercises/${exerciseIndex}/uncomplete`, {
         method: "POST",
+        credentials: 'include',
       })
 
       if (!response.ok) {
@@ -180,7 +184,7 @@ export default function SessionsPage() {
         
         // Update selected workout from refreshed list
         if (selectedWorkout && selectedWorkout.id === workoutId) {
-          const refreshedWorkouts = await fetch("/api/customer/workouts").then(r => r.json())
+          const refreshedWorkouts = await fetch("/api/customer/workouts", { credentials: 'include' }).then(r => r.json())
           const updatedWorkout = refreshedWorkouts.workouts?.find((w: any) => w.id === workoutId)
           if (updatedWorkout) {
             setSelectedWorkout(updatedWorkout)

@@ -45,11 +45,30 @@ export default function LoginPage() {
           const data = await response.json()
           setBranding(data)
           
-          // Apply secondary color as CSS variable
+          // Apply secondary color as CSS variable with OKLCH conversion for iOS compatibility
           if (typeof document !== "undefined" && data.secondary_color) {
-            document.documentElement.style.setProperty("--secondary", data.secondary_color)
-            // Also update primary if needed for consistency
-            document.documentElement.style.setProperty("--primary", data.secondary_color)
+            const hex = data.secondary_color.replace('#', '')
+            const r = parseInt(hex.substring(0, 2), 16)
+            const g = parseInt(hex.substring(2, 4), 16)
+            const b = parseInt(hex.substring(4, 6), 16)
+            
+            // Convert to OKLCH for Tailwind 4 compatibility
+            const rNorm = r / 255, gNorm = g / 255, bNorm = b / 255
+            const toLinear = (c: number) => c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4)
+            const rLin = toLinear(rNorm), gLin = toLinear(gNorm), bLin = toLinear(bNorm)
+            const x = 0.4124564 * rLin + 0.3575761 * gLin + 0.1804375 * bLin
+            const y = 0.2126729 * rLin + 0.7151522 * gLin + 0.0721750 * bLin
+            const z = 0.0193339 * rLin + 0.1191920 * gLin + 0.9503041 * bLin
+            const L = Math.cbrt(y)
+            const a_lab = (Math.cbrt(x / 0.95047) - Math.cbrt(y)) * 500
+            const b_lab = (Math.cbrt(y) - Math.cbrt(z / 1.08883)) * 200
+            const C = Math.sqrt(a_lab * a_lab + b_lab * b_lab) / 100
+            const H = (Math.atan2(b_lab, a_lab) * 180 / Math.PI + 360) % 360
+            
+            const oklchValue = `oklch(${L.toFixed(3)} ${(C * 0.4).toFixed(3)} ${H.toFixed(1)})`
+            document.documentElement.style.setProperty("--secondary", oklchValue)
+            document.documentElement.style.setProperty("--primary", oklchValue)
+            document.documentElement.style.setProperty("--brand-color", data.secondary_color)
           }
         }
       } catch (error) {

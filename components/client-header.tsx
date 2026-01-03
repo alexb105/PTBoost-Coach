@@ -40,7 +40,7 @@ export function ClientHeader() {
 
   const fetchCustomerInfo = async () => {
     try {
-      const response = await fetch("/api/customer/info")
+      const response = await fetch("/api/customer/info", { credentials: 'include' })
       if (response.status === 401) {
         // User is not authenticated, redirect to login
         router.push("/auth/login")
@@ -61,6 +61,7 @@ export function ClientHeader() {
     try {
       const response = await fetch("/api/auth/logout", {
         method: "POST",
+        credentials: 'include',
       })
 
       if (!response.ok) {

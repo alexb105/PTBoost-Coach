@@ -66,8 +66,8 @@ export default function TrainerRegisterPage() {
         throw new Error(data.error || "Registration failed")
       }
 
-      // In development, show the code in a toast
-      if (data.verificationCode) {
+      // In development, show the code in a toast (but don't put it in URL for security)
+      if (data.verificationCode && process.env.NODE_ENV === 'development') {
         toast.success(
           `Account created! Your verification code is: ${data.verificationCode}`,
           { duration: 10000 }
@@ -76,7 +76,8 @@ export default function TrainerRegisterPage() {
         toast.success("Account created! Please check your email for verification code.")
       }
       
-      router.push(`/auth/trainer/verify?email=${encodeURIComponent(formData.email)}${data.verificationCode ? `&code=${data.verificationCode}` : ''}`)
+      // Only include email in URL, never the verification code (security)
+      router.push(`/auth/trainer/verify?email=${encodeURIComponent(formData.email)}`)
     } catch (error: any) {
       toast.error(error.message || "Failed to create account")
     } finally {

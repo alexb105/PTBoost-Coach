@@ -49,7 +49,7 @@ function ProfilePageContent() {
 
   const fetchCustomerInfo = async () => {
     try {
-      const response = await fetch("/api/customer/info")
+      const response = await fetch("/api/customer/info", { credentials: 'include' })
       if (response.ok) {
         const data = await response.json()
         setCustomer(data.customer)
@@ -75,6 +75,7 @@ function ProfilePageContent() {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(customerForm),
+        credentials: 'include',
       })
 
       if (!response.ok) {
@@ -110,6 +111,7 @@ function ProfilePageContent() {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ newPassword: passwordForm.newPassword }),
+        credentials: 'include',
       })
 
       if (!response.ok) {

@@ -167,7 +167,7 @@ export function NutritionTracker({ customerId, onUpdateTargets }: NutritionTrack
       const endpoint = isAdminView 
         ? `/api/admin/customers/${customerId}/meal-templates`
         : "/api/customer/meal-templates"
-      const response = await fetch(endpoint)
+      const response = await fetch(endpoint, { credentials: 'include' })
       if (response.ok) {
         const data = await response.json()
         setMealTemplates(data.templates || [])
@@ -182,7 +182,7 @@ export function NutritionTracker({ customerId, onUpdateTargets }: NutritionTrack
       const endpoint = isAdminView
         ? `/api/admin/customers/${customerId}/nutrition`
         : "/api/customer/nutrition"
-      const response = await fetch(endpoint)
+      const response = await fetch(endpoint, { credentials: 'include' })
       if (response.ok) {
         const data = await response.json()
         setNutritionTarget(data.target)
@@ -200,7 +200,7 @@ export function NutritionTracker({ customerId, onUpdateTargets }: NutritionTrack
       const endpoint = isAdminView
         ? `/api/admin/customers/${customerId}/meals?date=${selectedDate}`
         : `/api/customer/meals?date=${selectedDate}`
-      const response = await fetch(endpoint)
+      const response = await fetch(endpoint, { credentials: 'include' })
       if (response.ok) {
         const data = await response.json()
         setMeals(data.meals || [])
@@ -289,6 +289,7 @@ export function NutritionTracker({ customerId, onUpdateTargets }: NutritionTrack
         method,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(mealData),
+        credentials: 'include',
       })
 
       if (!response.ok) {
@@ -314,6 +315,7 @@ export function NutritionTracker({ customerId, onUpdateTargets }: NutritionTrack
         : `/api/customer/meals/${deleteMealId}`
       const response = await fetch(endpoint, {
         method: "DELETE",
+        credentials: 'include',
       })
 
       if (!response.ok) {
@@ -358,6 +360,7 @@ export function NutritionTracker({ customerId, onUpdateTargets }: NutritionTrack
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(templateData),
+        credentials: 'include',
       })
 
       if (!response.ok) {
@@ -441,6 +444,7 @@ export function NutritionTracker({ customerId, onUpdateTargets }: NutritionTrack
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(templateData),
+        credentials: 'include',
       })
 
       if (!response.ok) {
@@ -464,6 +468,7 @@ export function NutritionTracker({ customerId, onUpdateTargets }: NutritionTrack
         : `/api/customer/meal-templates/${templateId}`
       const response = await fetch(endpoint, {
         method: "DELETE",
+        credentials: 'include',
       })
 
       if (!response.ok) {
@@ -607,12 +612,14 @@ export function NutritionTracker({ customerId, onUpdateTargets }: NutritionTrack
         const displayText = displayLines.join('\n')
         
         return (
-          <Card className="mb-6 bg-primary/5 border-primary/20 p-4">
+          <Card className="mb-6 bg-card border-primary/30 p-4">
             <div className="flex items-start gap-3">
-              <Apple className="h-5 w-5 text-primary mt-0.5" />
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 flex-shrink-0">
+                <Apple className="h-4 w-4 text-primary" />
+              </div>
               <div className="flex-1">
                 <h3 className="font-semibold text-foreground mb-1">{t("nutrition.suggestions")}</h3>
-                <p className="text-sm text-muted-foreground whitespace-pre-line">
+                <p className="text-sm text-foreground whitespace-pre-line">
                   {displayText}
                 </p>
                 {shouldTruncate && (

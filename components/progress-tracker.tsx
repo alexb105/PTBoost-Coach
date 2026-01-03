@@ -83,7 +83,7 @@ export function ProgressTracker() {
   const fetchProgress = async () => {
     try {
       setLoading(true)
-      const response = await fetch('/api/customer/progress')
+      const response = await fetch('/api/customer/progress', { credentials: 'include' })
       if (response.ok) {
         const data = await response.json()
         setWeightEntries(data.weightEntries || [])
@@ -178,6 +178,7 @@ export function ProgressTracker() {
       const response = await fetch('/api/customer/progress/photos', {
         method: 'POST',
         body: formData,
+        credentials: 'include',
       })
 
       if (response.ok) {
@@ -209,6 +210,7 @@ export function ProgressTracker() {
       setDeletingPhotoId(photoId)
       const response = await fetch(`/api/customer/progress/photos?id=${photoId}`, {
         method: 'DELETE',
+        credentials: 'include',
       })
 
       if (response.ok) {
@@ -250,6 +252,7 @@ export function ProgressTracker() {
           date: weightForm.date,
           notes: weightForm.notes || null,
         }),
+        credentials: 'include',
       })
 
       if (response.ok) {

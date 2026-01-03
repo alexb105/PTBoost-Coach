@@ -205,7 +205,7 @@ export function ChatInterface() {
         ? `/api/customer/messages?before=${encodeURIComponent(beforeDate)}&limit=10`
         : "/api/customer/messages?limit=10"
       
-      const response = await fetch(url)
+      const response = await fetch(url, { credentials: 'include' })
       if (response.ok) {
         const data = await response.json()
         const fetchedMessages = data.messages || []
@@ -346,7 +346,7 @@ export function ChatInterface() {
   const fetchAdminProfilePicture = async () => {
     try {
       // First, get customer info to get trainer_id
-      const customerResponse = await fetch("/api/customer/info")
+      const customerResponse = await fetch("/api/customer/info", { credentials: 'include' })
       if (!customerResponse.ok) {
         throw new Error("Failed to fetch customer info")
       }
@@ -358,7 +358,7 @@ export function ChatInterface() {
       }
 
       // Get trainer_id from customer
-      const trainerIdResponse = await fetch(`/api/customer/trainer`)
+      const trainerIdResponse = await fetch(`/api/customer/trainer`, { credentials: 'include' })
       if (!trainerIdResponse.ok) {
         throw new Error("Failed to fetch trainer info")
       }
@@ -632,6 +632,7 @@ export function ChatInterface() {
     try {
       const response = await fetch(`/api/customer/messages/${messageId}/like`, {
         method: isLiked ? "DELETE" : "POST",
+        credentials: 'include',
       })
       
       if (!response.ok) {
@@ -670,6 +671,7 @@ export function ChatInterface() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ content }),
+        credentials: 'include',
       })
       
       if (!response.ok) {
@@ -727,6 +729,7 @@ export function ChatInterface() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ content: messageContent }),
+        credentials: 'include',
       })
 
       if (!response.ok) {

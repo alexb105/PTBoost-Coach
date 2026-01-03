@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Settings, Users, LogOut, Loader2, Crown, TrendingUp, Key, AlertCircle, Lock, Trash2, CreditCard, ExternalLink } from "lucide-react"
+import { Settings, Users, LogOut, Loader2, Crown, TrendingUp, Lock, Trash2, CreditCard, ExternalLink, Clock } from "lucide-react"
 import { toast } from "sonner"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
@@ -26,15 +26,13 @@ interface Trainer {
   created_at: string
   auth_user_id: string | null
   stripe_customer_id: string | null
+  email_verified: boolean
 }
 
 export default function PlatformAdminPage() {
   const router = useRouter()
   const [trainers, setTrainers] = useState<Trainer[]>([])
   const [loading, setLoading] = useState(true)
-  const [linkingTrainer, setLinkingTrainer] = useState<string | null>(null)
-  const [linkPassword, setLinkPassword] = useState("")
-  const [isLinkDialogOpen, setIsLinkDialogOpen] = useState(false)
   const [resettingTrainer, setResettingTrainer] = useState<string | null>(null)
   const [resetPassword, setResetPassword] = useState("")
   const [isResetDialogOpen, setIsResetDialogOpen] = useState(false)
@@ -96,34 +94,6 @@ export default function PlatformAdminPage() {
       fetchTrainers()
     } catch (error) {
       toast.error("Failed to update subscription")
-    }
-  }
-
-  const handleLinkAuth = async (trainerId: string) => {
-    if (!linkPassword || linkPassword.length < 8) {
-      toast.error("Password must be at least 8 characters")
-      return
-    }
-
-    try {
-      const response = await fetch(`/api/platform-admin/trainers/${trainerId}/link-auth`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ password: linkPassword }),
-      })
-
-      if (!response.ok) {
-        const data = await response.json()
-        throw new Error(data.error || "Failed to link auth user")
-      }
-
-      toast.success("Auth user created and linked successfully")
-      setIsLinkDialogOpen(false)
-      setLinkPassword("")
-      setLinkingTrainer(null)
-      fetchTrainers()
-    } catch (error: any) {
-      toast.error(error.message || "Failed to link auth user")
     }
   }
 
@@ -267,7 +237,6 @@ export default function PlatformAdminPage() {
                   <TableRow>
                     <TableHead>Trainer</TableHead>
                     <TableHead>Email</TableHead>
-                    <TableHead>Auth Status</TableHead>
                     <TableHead>Stripe</TableHead>
                     <TableHead>Subscription</TableHead>
                     <TableHead>Status</TableHead>
@@ -283,19 +252,6 @@ export default function PlatformAdminPage() {
                         {trainer.full_name || trainer.business_name || 'N/A'}
                       </TableCell>
                       <TableCell>{trainer.email}</TableCell>
-                      <TableCell>
-                        {trainer.auth_user_id ? (
-                          <Badge variant="default" className="bg-green-500">
-                            <Key className="h-3 w-3 mr-1" />
-                            Linked
-                          </Badge>
-                        ) : (
-                          <Badge variant="destructive">
-                            <AlertCircle className="h-3 w-3 mr-1" />
-                            No Auth
-                          </Badge>
-                        )}
-                      </TableCell>
                       <TableCell>
                         {trainer.stripe_customer_id ? (
                           <a
@@ -319,83 +275,21 @@ export default function PlatformAdminPage() {
                         </Badge>
                       </TableCell>
                       <TableCell>
-                        <Badge variant={trainer.subscription_status === 'active' ? 'default' : 'secondary'}>
-                          {trainer.subscription_status}
-                        </Badge>
+                        {!trainer.email_verified ? (
+                          <Badge variant="outline" className="border-amber-500 text-amber-500">
+                            <Clock className="h-3 w-3 mr-1" />
+                            pending
+                          </Badge>
+                        ) : (
+                          <Badge variant={trainer.subscription_status === 'active' ? 'default' : 'secondary'}>
+                            {trainer.subscription_status}
+                          </Badge>
+                        )}
                       </TableCell>
                       <TableCell>{trainer.clientCount}</TableCell>
                       <TableCell>{trainer.max_clients === 9999 ? '∞' : trainer.max_clients}</TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">
-                          {!trainer.auth_user_id && (
-                            <Dialog 
-                              open={isLinkDialogOpen && linkingTrainer === trainer.id}
-                              onOpenChange={(open) => {
-                                setIsLinkDialogOpen(open)
-                                if (!open) {
-                                  setLinkingTrainer(null)
-                                  setLinkPassword("")
-                                }
-                              }}
-                            >
-                              <DialogTrigger asChild>
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => {
-                                    setLinkingTrainer(trainer.id)
-                                    setIsLinkDialogOpen(true)
-                                  }}
-                                  className="gap-1"
-                                >
-                                  <Key className="h-3 w-3" />
-                                  Link Auth
-                                </Button>
-                              </DialogTrigger>
-                              <DialogContent>
-                                <DialogHeader>
-                                  <DialogTitle>Create Auth Account</DialogTitle>
-                                  <DialogDescription>
-                                    Create a login account for {trainer.email}. They will use this password to log in.
-                                  </DialogDescription>
-                                </DialogHeader>
-                                <div className="space-y-4 py-4">
-                                  <div className="space-y-2">
-                                    <Label htmlFor="link-password">Password</Label>
-                                    <Input
-                                      id="link-password"
-                                      type="password"
-                                      placeholder="Minimum 8 characters"
-                                      value={linkPassword}
-                                      onChange={(e) => setLinkPassword(e.target.value)}
-                                      minLength={8}
-                                    />
-                                    <p className="text-xs text-muted-foreground">
-                                      This password will be used by the trainer to log in at /auth/trainer
-                                    </p>
-                                  </div>
-                                  <div className="flex justify-end gap-2">
-                                    <Button
-                                      variant="outline"
-                                      onClick={() => {
-                                        setIsLinkDialogOpen(false)
-                                        setLinkingTrainer(null)
-                                        setLinkPassword("")
-                                      }}
-                                    >
-                                      Cancel
-                                    </Button>
-                                    <Button
-                                      onClick={() => handleLinkAuth(trainer.id)}
-                                      disabled={linkPassword.length < 8}
-                                    >
-                                      Create & Link
-                                    </Button>
-                                  </div>
-                                </div>
-                              </DialogContent>
-                            </Dialog>
-                          )}
                           {trainer.auth_user_id && (
                             <Dialog 
                               open={isResetDialogOpen && resettingTrainer === trainer.id}

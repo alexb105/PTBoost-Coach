@@ -2687,12 +2687,14 @@ export default function CustomerDetailPage() {
 
                 {/* Suggestions Card */}
                 {nutritionTarget.suggestions && (
-                  <Card className="bg-primary/5 border-primary/20 p-4">
+                  <Card className="bg-card border-primary/30 p-4">
                     <div className="flex items-start gap-3">
-                      <Apple className="h-5 w-5 text-primary mt-0.5" />
+                      <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 flex-shrink-0">
+                        <Apple className="h-4 w-4 text-primary" />
+                      </div>
                       <div className="flex-1">
                         <h3 className="font-semibold text-foreground mb-1">Suggestions</h3>
-                        <p className="text-sm text-muted-foreground whitespace-pre-line">
+                        <p className="text-sm text-foreground whitespace-pre-line">
                           {nutritionTarget.suggestions}
                         </p>
                       </div>
