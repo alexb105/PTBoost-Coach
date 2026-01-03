@@ -13,3 +13,5 @@ CREATE INDEX IF NOT EXISTS idx_trainers_verification_code ON trainers(verificati
 -- Update existing trainers to be verified (grandfather in existing users)
 UPDATE trainers SET email_verified = TRUE WHERE email_verified IS NULL;
 
+
+

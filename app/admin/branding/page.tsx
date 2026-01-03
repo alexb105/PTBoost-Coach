@@ -27,7 +27,7 @@ export default function BrandingPage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [settings, setSettings] = useState<BrandingSettings>({
-    brand_name: "APEX Training",
+    brand_name: "coachapro",
     tagline: "Elite Personal Training Platform",
     logo_url: null,
     secondary_color: "#3b82f6",
@@ -265,7 +265,7 @@ export default function BrandingPage() {
                 <Input
                   id="brand_name"
                   type="text"
-                  placeholder="APEX Training"
+                  placeholder="coachapro"
                   value={settings.brand_name}
                   onChange={(e) => setSettings({ ...settings, brand_name: e.target.value })}
                   required

@@ -123,7 +123,7 @@ function VerifyEmailContent() {
           <div className="mb-4 inline-flex h-14 w-14 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 shadow-lg shadow-emerald-500/30">
             <Dumbbell className="h-7 w-7 text-white" />
           </div>
-          <h1 className="text-2xl font-bold text-white">PT Boost</h1>
+          <h1 className="text-2xl font-bold text-white">coachapro</h1>
         </div>
 
         <Card className="border-slate-800 bg-slate-900/80 shadow-2xl shadow-black/50 backdrop-blur-xl">

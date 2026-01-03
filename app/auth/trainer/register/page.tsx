@@ -133,7 +133,7 @@ export default function TrainerRegisterPage() {
               </div>
             </div>
             <p className="text-slate-200 italic text-sm leading-relaxed mb-3">
-              &ldquo;PT Boost has transformed how I manage my clients. I&apos;ve grown from 5 to 25 clients in just 3 months while saving 10+ hours per week on admin tasks!&rdquo;
+              &ldquo;coachapro has transformed how I manage my clients. I&apos;ve grown from 5 to 25 clients in just 3 months while saving 10+ hours per week on admin tasks!&rdquo;
             </p>
             <div className="flex items-center gap-2.5">
               <div className="h-9 w-9 rounded-full bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center text-white font-semibold text-sm">
@@ -172,7 +172,7 @@ export default function TrainerRegisterPage() {
             <div className="mb-4 inline-flex h-14 w-14 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 shadow-lg shadow-emerald-500/30">
               <Dumbbell className="h-7 w-7 text-white" />
             </div>
-            <h1 className="text-2xl font-bold text-white">PT Boost</h1>
+            <h1 className="text-2xl font-bold text-white">coachapro</h1>
           </div>
 
           {/* Back Button */}

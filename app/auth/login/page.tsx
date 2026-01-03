@@ -13,7 +13,7 @@ import { toast } from "sonner"
 import { LanguageSelector } from "@/components/language-selector"
 import { useLanguage } from "@/contexts/language-context"
 
-const REMEMBERED_CREDENTIALS_KEY = "ptboost_remembered_credentials"
+const REMEMBERED_CREDENTIALS_KEY = "coachapro_remembered_credentials"
 
 interface BrandingSettings {
   brand_name: string
@@ -30,7 +30,7 @@ export default function LoginPage() {
   const [rememberMe, setRememberMe] = useState(false)
   const [loading, setLoading] = useState(false)
   const [branding, setBranding] = useState<BrandingSettings>({
-    brand_name: "APEX Training",
+    brand_name: "coachapro",
     tagline: "Elite Personal Training Platform",
     logo_url: null,
     secondary_color: "#3b82f6",

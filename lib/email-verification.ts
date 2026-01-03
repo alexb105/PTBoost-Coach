@@ -18,7 +18,7 @@ export async function sendVerificationEmail(
   code: string,
   name?: string
 ): Promise<void> {
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://ptboost-coach.netlify.app'
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://coachapro.com'
   
   // For now, log the code - implement actual email sending
   console.log('📧 Verification Email:', {
@@ -37,12 +37,12 @@ export async function sendVerificationEmail(
   //       'Content-Type': 'application/json',
   //     },
   //     body: JSON.stringify({
-  //       from: 'PT Boost <noreply@ptboost.com>',
+      //       from: 'coachapro <noreply@coachapro.com>',
   //       to: email,
-  //       subject: 'Verify your PT Boost account',
+      //       subject: 'Verify your coachapro account',
   //       html: `
   //         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-  //           <h1 style="color: #10b981;">Welcome to PT Boost!</h1>
+      //           <h1 style="color: #10b981;">Welcome to coachapro!</h1>
   //           <p>Hi ${name || 'there'},</p>
   //           <p>Thank you for signing up! Please verify your email address by entering this code:</p>
   //           <div style="background: #1f2937; padding: 20px; text-align: center; border-radius: 8px; margin: 20px 0;">
@@ -51,7 +51,7 @@ export async function sendVerificationEmail(
   //           <p>This code will expire in 24 hours.</p>
   //           <p>If you didn't create an account, please ignore this email.</p>
   //           <hr style="border: none; border-top: 1px solid #374151; margin: 20px 0;">
-  //           <p style="color: #9ca3af; font-size: 12px;">PT Boost - Personal Training Platform</p>
+      //           <p style="color: #9ca3af; font-size: 12px;">coachapro - Personal Training Platform</p>
   //         </div>
   //       `,
   //     }),
@@ -61,4 +61,6 @@ export async function sendVerificationEmail(
   //   throw error
   // }
 }
+
+
 

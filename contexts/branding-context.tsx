@@ -18,7 +18,7 @@ const BrandingContext = createContext<BrandingContextType | undefined>(undefined
 
 export function BrandingProvider({ children }: { children: ReactNode }) {
   const [branding, setBranding] = useState<BrandingSettings>({
-    brand_name: 'APEX Training',
+    brand_name: 'coachapro',
     tagline: 'Elite Personal Training Platform',
     logo_url: null,
     secondary_color: '#3b82f6',

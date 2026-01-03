@@ -12,3 +12,6 @@ COMMENT ON COLUMN exercises.muscle_groups IS 'Array of muscle groups targeted by
 
 
 
+
+
+

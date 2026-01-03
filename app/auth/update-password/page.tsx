@@ -85,7 +85,7 @@ export default function UpdatePasswordPage() {
           <div className="mb-4 inline-flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-primary/20 to-primary/5 shadow-lg shadow-primary/10 ring-1 ring-primary/20">
             <Dumbbell className="h-8 w-8 text-primary" />
           </div>
-          <h1 className="mb-2 text-3xl font-semibold tracking-tight text-balance">APEX Training</h1>
+          <h1 className="mb-2 text-3xl font-semibold tracking-tight text-balance">coachapro</h1>
           <p className="text-sm text-muted-foreground">Elite Personal Training Platform</p>
         </div>
 

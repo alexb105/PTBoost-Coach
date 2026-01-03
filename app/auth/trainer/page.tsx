@@ -71,7 +71,7 @@ export default function TrainerLoginPage() {
           <div className="mb-4 inline-flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 shadow-lg shadow-emerald-500/30">
             <Dumbbell className="h-8 w-8 text-white" />
           </div>
-          <h1 className="mb-2 text-3xl font-bold tracking-tight text-white">PT Boost</h1>
+          <h1 className="mb-2 text-3xl font-bold tracking-tight text-white">coachapro</h1>
           <p className="text-sm text-slate-400">Trainer Portal</p>
         </div>
 

@@ -12,7 +12,7 @@ const _geist = Geist({ subsets: ["latin"] })
 const _geistMono = Geist_Mono({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
-  title: "APEX Training — Elite Personal Training",
+  title: "coachapro — Elite Personal Training",
   description: "Elevate your fitness journey with personalized elite training",
   generator: "v0.app",
   viewport: {
@@ -28,7 +28,7 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
-    title: "APEX Training",
+    title: "coachapro",
   },
   icons: {
     icon: [

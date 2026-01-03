@@ -65,3 +65,5 @@ END $$;
 -- Note: The trainer_notes column can be kept for backward compatibility or dropped later
 -- To drop it later, run: ALTER TABLE customers DROP COLUMN IF EXISTS trainer_notes;
 
+
+

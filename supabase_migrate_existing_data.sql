@@ -26,7 +26,7 @@ BEGIN
     ) VALUES (
       v_admin_email,
       'Default Trainer',
-      'PT Boost',
+      'coachapro',
       'enterprise',  -- Give existing admin full access
       'active',
       9999

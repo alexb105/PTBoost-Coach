@@ -7,3 +7,6 @@ COMMENT ON COLUMN branding_settings.admin_name IS 'Admin name displayed in chat 
 
 
 
+
+
+

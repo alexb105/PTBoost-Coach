@@ -7,3 +7,5 @@ ADD COLUMN IF NOT EXISTS trainer_notes TEXT;
 -- Add comment to document the field
 COMMENT ON COLUMN customers.trainer_notes IS 'Private notes about the client, visible only to the trainer';
 
+
+

@@ -11,7 +11,7 @@ export async function GET(request: NextRequest) {
 
     // Default branding settings
     const defaults = {
-      brand_name: 'APEX Training',
+      brand_name: 'coachapro',
       tagline: 'Elite Personal Training Platform',
       logo_url: null,
       secondary_color: '#3b82f6',
@@ -70,7 +70,7 @@ export async function GET(request: NextRequest) {
     console.error('Error fetching branding settings:', error)
     // Return defaults on error
     return NextResponse.json({
-      brand_name: 'APEX Training',
+      brand_name: 'coachapro',
       tagline: 'Elite Personal Training Platform',
       logo_url: null,
       secondary_color: '#3b82f6',

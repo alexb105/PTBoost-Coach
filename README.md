@@ -1,4 +1,4 @@
-# PTBoost Coach
+# coachapro
 
 A personal training application built with Next.js, React, and Supabase.
 

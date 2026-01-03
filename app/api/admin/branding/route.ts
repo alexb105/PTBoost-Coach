@@ -19,7 +19,7 @@ export async function GET(request: NextRequest) {
     if (!session.trainerId) {
       // Legacy admin - return defaults
       return NextResponse.json({
-        brand_name: 'APEX Training',
+        brand_name: 'coachapro',
         tagline: 'Elite Personal Training Platform',
         logo_url: null,
         secondary_color: '#3b82f6',
@@ -40,7 +40,7 @@ export async function GET(request: NextRequest) {
       // If no settings exist for this trainer, return defaults
       if (error.code === 'PGRST116') {
         return NextResponse.json({
-          brand_name: 'APEX Training',
+          brand_name: 'coachapro',
           tagline: 'Elite Personal Training Platform',
           logo_url: null,
           secondary_color: '#3b82f6',
@@ -52,7 +52,7 @@ export async function GET(request: NextRequest) {
     }
 
     return NextResponse.json(data || {
-      brand_name: 'APEX Training',
+      brand_name: 'coachapro',
       tagline: 'Elite Personal Training Platform',
       logo_url: null,
       secondary_color: '#3b82f6',
