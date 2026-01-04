@@ -15,3 +15,5 @@ COMMENT ON COLUMN exercises.video_url IS 'URL to a video demonstrating the exerc
 
 
 
+
+

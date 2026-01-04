@@ -7,7 +7,7 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 
 export async function POST(request: NextRequest) {
   try {
-    const { email, password } = await request.json()
+    const { email, password, rememberMe } = await request.json()
 
     if (!email || !password) {
       return NextResponse.json(
@@ -53,12 +53,18 @@ export async function POST(request: NextRequest) {
 
     const needsPasswordUpdate = !customerData?.one_time_password_used
 
-    // Create session
+    // Session duration: 30 days if "Remember me" is checked, otherwise 24 hours
+    const sessionDurationMs = rememberMe ? 30 * 24 * 60 * 60 * 1000 : 24 * 60 * 60 * 1000
+    const sessionDurationSec = rememberMe ? 30 * 24 * 60 * 60 : 24 * 60 * 60
+
+    // Create session with expiry timestamp
     const sessionToken = Buffer.from(
       JSON.stringify({ 
         userId: authData.user.id, 
         email: authData.user.email,
-        timestamp: Date.now() 
+        timestamp: Date.now(),
+        expiresAt: Date.now() + sessionDurationMs,
+        rememberMe: !!rememberMe
       })
     ).toString('base64')
 
@@ -74,12 +80,13 @@ export async function POST(request: NextRequest) {
       { status: 200 }
     )
 
-    // Set session cookie
+    // Set session cookie with iOS-compatible settings
+    // Using 'lax' for sameSite to work with iOS Safari ITP
     response.cookies.set('user_session', sessionToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
-      maxAge: 86400, // 24 hours
+      maxAge: sessionDurationSec,
       path: '/',
     })
 

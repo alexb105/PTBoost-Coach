@@ -12,3 +12,5 @@ CREATE INDEX IF NOT EXISTS idx_workouts_customer_rest_day ON workouts(customer_i
 
 
 
+
+

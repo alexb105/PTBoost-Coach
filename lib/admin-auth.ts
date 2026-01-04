@@ -33,8 +33,10 @@ export async function checkAdminSession(request: NextRequest): Promise<AdminSess
     try {
       const sessionData = JSON.parse(Buffer.from(trainerSession, 'base64').toString())
       
-      // Check if session is expired (24 hours)
-      if (Date.now() - sessionData.timestamp > 86400000) {
+      // Check if session is expired using stored expiry time
+      // Fall back to 24 hours from timestamp for older sessions without expiresAt
+      const expiresAt = sessionData.expiresAt || (sessionData.timestamp + 86400000)
+      if (Date.now() > expiresAt) {
         return null
       }
       
@@ -94,8 +96,10 @@ export async function checkAdminSession(request: NextRequest): Promise<AdminSess
     try {
       const sessionData = JSON.parse(Buffer.from(adminSession, 'base64').toString())
       
-      // Check if session is expired (24 hours)
-      if (Date.now() - sessionData.timestamp > 86400000) {
+      // Check if session is expired using stored expiry time
+      // Fall back to 24 hours from timestamp for older sessions without expiresAt
+      const expiresAt = sessionData.expiresAt || (sessionData.timestamp + 86400000)
+      if (Date.now() > expiresAt) {
         return null
       }
       

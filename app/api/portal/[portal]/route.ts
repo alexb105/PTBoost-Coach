@@ -1,23 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@/lib/supabase'
 
-// GET - Fetch branding settings by portal slug
+// GET - Fetch branding settings by portal identifier
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ slug: string }> }
+  { params }: { params: Promise<{ portal: string }> }
 ) {
   try {
-    const { slug: rawSlug } = await params
-    // Decode the slug in case it was URL encoded
-    const slug = decodeURIComponent(rawSlug)
-    console.log(`Portal API: Received slug: ${rawSlug}, decoded: ${slug}`)
+    const { portal: rawPortal } = await params
+    // Decode the portal identifier in case it was URL encoded
+    const portal = decodeURIComponent(rawPortal)
+    console.log(`Portal API: Received portal: ${rawPortal}, decoded: ${portal}`)
     const supabase = createServerClient()
 
     // Find branding settings by portal_slug
     const { data: brandingData, error: brandingError } = await supabase
       .from('branding_settings')
       .select('*, trainer_id')
-      .eq('portal_slug', slug)
+      .eq('portal_slug', portal)
       .limit(1)
       .maybeSingle()
 
@@ -28,7 +28,7 @@ export async function GET(
       // If column doesn't exist, return helpful error
       if (brandingError.code === '42703' || brandingError.message?.includes('portal_slug')) {
         return NextResponse.json(
-          { error: 'Portal slug feature not configured. Please run the database migration.' },
+          { error: 'Portal feature not configured. Please run the database migration.' },
           { status: 500 }
         )
       }
@@ -39,9 +39,9 @@ export async function GET(
     }
 
     if (!brandingData) {
-      console.log(`No branding found for slug: ${slug}`)
+      console.log(`No branding found for portal: ${portal}`)
       return NextResponse.json(
-        { error: 'Portal not found. Please check that the slug is correct and has been set in branding settings.' },
+        { error: 'Portal not found. Please check that the portal identifier is correct and has been set in branding settings.' },
         { status: 404 }
       )
     }

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@/lib/supabase'
 import { checkAdminSession } from '@/lib/admin-auth'
+import { sendMessageNotificationEmail } from '@/lib/emailjs'
 
 export async function GET(
   request: NextRequest,
@@ -135,6 +136,13 @@ export async function POST(
       throw error
     }
 
+    // Send email notification to customer (non-blocking)
+    if (session.trainerId) {
+      sendCustomerNotification(supabase, id, session.trainerId, content.trim()).catch(err => {
+        console.error('Failed to send customer notification:', err)
+      })
+    }
+
     return NextResponse.json(
       { message: data, success: 'Message sent successfully' },
       { status: 201 }
@@ -145,6 +153,61 @@ export async function POST(
       { error: error.message || 'Failed to send message' },
       { status: 500 }
     )
+  }
+}
+
+// Helper function to send notification to customer
+async function sendCustomerNotification(
+  supabase: ReturnType<typeof createServerClient>,
+  customerId: string,
+  trainerId: string,
+  messageContent: string
+) {
+  try {
+    // Get customer info
+    const { data: customer } = await supabase
+      .from('customers')
+      .select('email, full_name')
+      .eq('id', customerId)
+      .single()
+
+    if (!customer?.email) {
+      console.log('Customer email not found, skipping notification')
+      return
+    }
+
+    // Get trainer info
+    const { data: trainer } = await supabase
+      .from('trainers')
+      .select('full_name, business_name')
+      .eq('id', trainerId)
+      .single()
+
+    // Get branding settings for portal URL
+    const { data: branding } = await supabase
+      .from('branding_settings')
+      .select('portal_slug, brand_name')
+      .eq('trainer_id', trainerId)
+      .single()
+
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://coachapro.com'
+    // Customer chat URL goes to the portal or main chat
+    const chatUrl = branding?.portal_slug 
+      ? `${appUrl}/portal/${branding.portal_slug}`
+      : `${appUrl}/chat`
+
+    const senderName = trainer?.full_name || trainer?.business_name || branding?.brand_name || 'Your Trainer'
+
+    await sendMessageNotificationEmail({
+      to_email: customer.email,
+      to_name: customer.full_name || 'there',
+      sender_name: senderName,
+      sender_role: 'Your Trainer',
+      message_preview: messageContent,
+      chat_url: chatUrl,
+    })
+  } catch (error) {
+    console.error('Error sending customer notification:', error)
   }
 }
 

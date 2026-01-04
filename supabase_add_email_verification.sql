@@ -15,3 +15,5 @@ UPDATE trainers SET email_verified = TRUE WHERE email_verified IS NULL;
 
 
 
+
+

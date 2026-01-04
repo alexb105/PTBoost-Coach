@@ -24,3 +24,5 @@ WHERE exercise_type IS NULL OR exercise_type NOT IN ('cardio', 'sets');
 
 
 
+
+

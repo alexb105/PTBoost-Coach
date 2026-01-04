@@ -16,10 +16,11 @@ export async function GET(request: NextRequest) {
         Buffer.from(sessionToken.value, 'base64').toString()
       )
 
-      const sessionAge = Date.now() - sessionData.timestamp
-      const maxAge = 86400000 // 24 hours
-
-      if (sessionAge > maxAge) {
+      // Check if session has expired using the stored expiry time
+      // Fall back to 24 hours from timestamp for older sessions without expiresAt
+      const expiresAt = sessionData.expiresAt || (sessionData.timestamp + 86400000)
+      
+      if (Date.now() > expiresAt) {
         return NextResponse.json(
           { authenticated: false },
           { status: 401 }

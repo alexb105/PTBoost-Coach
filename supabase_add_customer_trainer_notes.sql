@@ -9,3 +9,5 @@ COMMENT ON COLUMN customers.trainer_notes IS 'Private notes about the client, vi
 
 
 
+
+

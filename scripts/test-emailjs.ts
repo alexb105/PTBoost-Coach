@@ -84,3 +84,5 @@ config({ path: resolve(process.cwd(), '.env.local') })
 
 testEmailJS().catch(console.error)
 
+
+

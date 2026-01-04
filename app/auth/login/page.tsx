@@ -13,8 +13,6 @@ import { toast } from "sonner"
 import { LanguageSelector } from "@/components/language-selector"
 import { useLanguage } from "@/contexts/language-context"
 
-const REMEMBERED_CREDENTIALS_KEY = "coachapro_remembered_credentials"
-
 interface BrandingSettings {
   brand_name: string
   tagline: string
@@ -29,6 +27,7 @@ function LoginPageContent() {
   const [password, setPassword] = useState("")
   const [rememberMe, setRememberMe] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [loadingBranding, setLoadingBranding] = useState(true)
   const [branding, setBranding] = useState<BrandingSettings>({
     brand_name: "coachapro",
     tagline: "Elite Personal Training Platform",
@@ -38,16 +37,17 @@ function LoginPageContent() {
   // Load branding settings and remembered credentials on mount
   useEffect(() => {
     const loadBranding = async () => {
+      setLoadingBranding(true)
       try {
-        // Check for query parameters: trainer_id or slug
+        // Check for query parameters: trainer_id or portal
         const trainerId = searchParams.get('trainer_id')
-        const slug = searchParams.get('slug')
+        const portal = searchParams.get('portal')
         
-        if (slug) {
-          // If slug is provided, fetch branding by portal slug
+        if (portal) {
+          // If portal is provided, fetch branding by portal identifier
           try {
-            console.log(`Fetching branding for slug: ${slug}`)
-            const portalResponse = await fetch(`/api/portal/${slug}`, {
+            console.log(`Fetching branding for portal: ${portal}`)
+            const portalResponse = await fetch(`/api/portal/${portal}`, {
               method: 'GET',
               headers: {
                 'Content-Type': 'application/json',
@@ -63,11 +63,12 @@ function LoginPageContent() {
                 tagline: portalData.tagline || "Elite Personal Training Platform",
                 logo_url: portalData.logo_url,
               })
+              setLoadingBranding(false)
               return
             } else {
               // Portal not found - fall back to default branding
               const errorData = await portalResponse.json().catch(() => ({}))
-              console.log(`Portal not found for slug: ${slug}, status: ${portalResponse.status}`, errorData)
+              console.log(`Portal not found: ${portal}, status: ${portalResponse.status}`, errorData)
             }
           } catch (error) {
             // Error fetching portal - fall back to default branding
@@ -83,11 +84,12 @@ function LoginPageContent() {
               tagline: data.tagline || "Elite Personal Training Platform",
               logo_url: data.logo_url,
             })
+            setLoadingBranding(false)
             return
           }
         }
         
-        // Default branding (no slug or trainer_id provided)
+        // Default branding (no portal or trainer_id provided)
         const response = await fetch("/api/branding")
         if (response.ok) {
           const data = await response.json()
@@ -99,24 +101,12 @@ function LoginPageContent() {
         }
       } catch (error) {
         console.error("Failed to load branding settings:", error)
+      } finally {
+        setLoadingBranding(false)
       }
     }
 
     loadBranding()
-
-    if (typeof window !== "undefined") {
-      try {
-        const saved = localStorage.getItem(REMEMBERED_CREDENTIALS_KEY)
-        if (saved) {
-          const credentials = JSON.parse(saved)
-          setEmail(credentials.email || "")
-          setPassword(credentials.password || "")
-          setRememberMe(true)
-        }
-      } catch (error) {
-        console.error("Failed to load remembered credentials:", error)
-      }
-    }
   }, [searchParams])
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -129,25 +119,14 @@ function LoginPageContent() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ email, password }),
+        credentials: 'include',
+        body: JSON.stringify({ email, password, rememberMe }),
       })
 
       const data = await response.json()
 
       if (!response.ok) {
         throw new Error(data.error || "Login failed")
-      }
-
-      // Save or clear credentials based on "Remember Me" checkbox
-      if (typeof window !== "undefined") {
-        if (rememberMe) {
-          localStorage.setItem(
-            REMEMBERED_CREDENTIALS_KEY,
-            JSON.stringify({ email, password })
-          )
-        } else {
-          localStorage.removeItem(REMEMBERED_CREDENTIALS_KEY)
-        }
       }
 
       // Check if user needs to update password
@@ -163,6 +142,18 @@ function LoginPageContent() {
     } finally {
       setLoading(false)
     }
+  }
+
+  // Show loading screen while branding is being fetched
+  if (loadingBranding) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-gradient-to-br from-background via-background to-background/95 p-4">
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <p className="text-sm text-muted-foreground">Loading...</p>
+        </div>
+      </main>
+    )
   }
 
   return (

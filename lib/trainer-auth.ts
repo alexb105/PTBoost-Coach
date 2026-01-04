@@ -27,8 +27,10 @@ export async function checkTrainerSession(request: NextRequest): Promise<Trainer
     // Decode the session token
     const sessionData = JSON.parse(Buffer.from(sessionCookie, 'base64').toString())
     
-    // Check if session is expired (24 hours)
-    if (Date.now() - sessionData.timestamp > 86400000) {
+    // Check if session is expired using stored expiry time
+    // Fall back to 24 hours from timestamp for older sessions without expiresAt
+    const expiresAt = sessionData.expiresAt || (sessionData.timestamp + 86400000)
+    if (Date.now() > expiresAt) {
       return null
     }
 
@@ -72,13 +74,16 @@ export async function checkTrainerSession(request: NextRequest): Promise<Trainer
 
 /**
  * Create a session token for a trainer
+ * Session duration: 30 days by default for trainers
  */
 export function createTrainerSessionToken(trainerId: string, email: string): string {
+  const sessionDurationMs = 30 * 24 * 60 * 60 * 1000 // 30 days
   return Buffer.from(
     JSON.stringify({
       trainerId,
       email,
       timestamp: Date.now(),
+      expiresAt: Date.now() + sessionDurationMs,
       role: 'trainer'
     })
   ).toString('base64')
@@ -86,13 +91,14 @@ export function createTrainerSessionToken(trainerId: string, email: string): str
 
 /**
  * Set the trainer session cookie on a response
+ * iOS-compatible settings with 30-day session duration
  */
 export function setTrainerSessionCookie(response: NextResponse, token: string): NextResponse {
   response.cookies.set('trainer_session', token, {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'lax',
-    maxAge: 86400, // 24 hours
+    maxAge: 30 * 24 * 60 * 60, // 30 days
     path: '/',
   })
   return response

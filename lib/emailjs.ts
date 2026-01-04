@@ -7,6 +7,7 @@
  * - EMAILJS_SERVICE_ID: Your EmailJS service ID (e.g., service_cqx4anp)
  * - EMAILJS_VERIFICATION_TEMPLATE_ID: Template ID for verification emails
  * - EMAILJS_NOTIFICATION_TEMPLATE_ID: Template ID for admin notification emails
+ * - EMAILJS_MESSAGE_TEMPLATE_ID: Template ID for message notification emails
  */
 
 import emailjs from '@emailjs/nodejs'
@@ -42,6 +43,16 @@ interface AdminNotificationParams {
   subject: string
   message: string
   trainer_email: string
+}
+
+interface MessageNotificationParams {
+  to_email: string
+  to_name: string
+  sender_name: string
+  sender_role: string  // e.g., "Your Trainer" or "Your Client"
+  message_preview: string
+  chat_url: string
+  app_name?: string
 }
 
 /**
@@ -162,6 +173,83 @@ export async function sendAdminNotificationEmail({
     return true
   } catch (error: any) {
     console.error('❌ Failed to send admin notification email:', {
+      error: error,
+      message: error?.message,
+      status: error?.status,
+      text: error?.text,
+      details: error,
+    })
+    return false
+  }
+}
+
+/**
+ * Send a message notification email (works for both trainer and client notifications)
+ */
+export async function sendMessageNotificationEmail({
+  to_email,
+  to_name,
+  sender_name,
+  sender_role,
+  message_preview,
+  chat_url,
+  app_name = 'CoachaPro',
+}: MessageNotificationParams): Promise<boolean> {
+  const serviceId = process.env.EMAILJS_SERVICE_ID
+  const templateId = process.env.EMAILJS_MESSAGE_TEMPLATE_ID
+  
+  // Truncate message preview if too long
+  const truncatedPreview = message_preview.length > 200 
+    ? message_preview.substring(0, 200) + '...' 
+    : message_preview
+  
+  // Log email details for debugging
+  console.log('📧 Sending message notification:', {
+    to: to_email,
+    toName: to_name,
+    senderName: sender_name,
+    senderRole: sender_role,
+  })
+  
+  // If message template is not configured, just log and return (don't fail)
+  if (!templateId || templateId === 'template_xxxxx') {
+    console.warn('⚠️ Message notification template not configured. Email logged but not sent.')
+    console.log('To enable message notifications, set EMAILJS_MESSAGE_TEMPLATE_ID in .env.local')
+    return false
+  }
+  
+  if (!initEmailJS() || !serviceId) {
+    console.warn('⚠️ EmailJS not fully configured. Email logged but not sent.')
+    console.log('Required env vars: EMAILJS_PUBLIC_KEY, EMAILJS_PRIVATE_KEY, EMAILJS_SERVICE_ID')
+    return false
+  }
+  
+  try {
+    const templateParams = {
+      to_email,
+      to_name: to_name || 'there',
+      sender_name,
+      sender_role,
+      message_preview: truncatedPreview,
+      chat_url,
+      app_name,
+    }
+    
+    console.log('📧 EmailJS send attempt:', {
+      serviceId,
+      templateId,
+      params: { ...templateParams, message_preview: truncatedPreview.substring(0, 50) + '...' },
+    })
+    
+    const response = await emailjs.send(serviceId, templateId, templateParams)
+    
+    console.log('✅ Message notification email sent successfully:', {
+      status: response.status,
+      statusText: response.text,
+    })
+    return true
+  } catch (error: any) {
+    console.error('❌ Failed to send message notification email:', {
       error: error,
       message: error?.message,
       status: error?.status,

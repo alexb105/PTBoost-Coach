@@ -343,12 +343,12 @@ export default function BrandingPage() {
               <div className="space-y-2">
                 <Label htmlFor="portal_slug" className="flex items-center gap-2">
                   <Link2 className="h-4 w-4" />
-                  Client Portal URL Slug
+                  Client Portal URL
                 </Label>
                 <div className="flex gap-2">
                   <div className="flex-1 flex items-center gap-0">
                     <div className="h-11 px-3 flex items-center bg-muted border border-r-0 rounded-l-md text-sm text-muted-foreground">
-                      {baseUrl || 'https://yourdomain.com'}/auth/login?slug=
+                      {baseUrl || 'https://yourdomain.com'}/auth/login?portal=
                     </div>
                     <Input
                       id="portal_slug"
@@ -375,7 +375,7 @@ export default function BrandingPage() {
                         size="icon"
                         className="h-11 w-11"
                         onClick={() => {
-                          const url = `${baseUrl || window.location.origin}/auth/login?slug=${settings.portal_slug}`
+                          const url = `${baseUrl || window.location.origin}/auth/login?portal=${settings.portal_slug}`
                           navigator.clipboard.writeText(url)
                           setCopied(true)
                           toast.success("URL copied to clipboard!")
@@ -390,7 +390,7 @@ export default function BrandingPage() {
                         size="icon"
                         className="h-11 w-11"
                         onClick={() => {
-                          window.open(`/auth/login?slug=${settings.portal_slug}`, '_blank')
+                          window.open(`/auth/login?portal=${settings.portal_slug}`, '_blank')
                         }}
                       >
                         <ExternalLink className="h-4 w-4" />
@@ -405,7 +405,7 @@ export default function BrandingPage() {
                   <div className="p-3 bg-primary/5 border border-primary/20 rounded-lg">
                     <p className="text-sm font-medium text-primary">Your shareable link:</p>
                     <p className="text-sm text-muted-foreground break-all">
-                      {baseUrl || 'https://yourdomain.com'}/auth/login?slug={settings.portal_slug}
+                      {baseUrl || 'https://yourdomain.com'}/auth/login?portal={settings.portal_slug}
                     </p>
                   </div>
                 )}

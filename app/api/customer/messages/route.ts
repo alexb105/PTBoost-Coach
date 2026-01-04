@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServerClient } from '@/lib/supabase'
+import { sendMessageNotificationEmail } from '@/lib/emailjs'
 
 // Helper to get user session
 async function getUserSession(request: NextRequest) {
@@ -154,6 +155,11 @@ export async function POST(
       throw error
     }
 
+    // Send email notification to trainer (non-blocking)
+    sendTrainerNotification(supabase, session.userId, content.trim()).catch(err => {
+      console.error('Failed to send trainer notification:', err)
+    })
+
     return NextResponse.json(
       { message: data, success: 'Message sent successfully' },
       { status: 201 }
@@ -164,6 +170,57 @@ export async function POST(
       { error: error.message || 'Failed to send message' },
       { status: 500 }
     )
+  }
+}
+
+// Helper function to send notification to trainer
+async function sendTrainerNotification(supabase: ReturnType<typeof createServerClient>, customerId: string, messageContent: string) {
+  try {
+    // Get customer info including trainer_id
+    const { data: customer } = await supabase
+      .from('customers')
+      .select('full_name, trainer_id')
+      .eq('id', customerId)
+      .single()
+
+    if (!customer?.trainer_id) {
+      console.log('No trainer found for customer, skipping notification')
+      return
+    }
+
+    // Get trainer info
+    const { data: trainer } = await supabase
+      .from('trainers')
+      .select('email, full_name')
+      .eq('id', customer.trainer_id)
+      .single()
+
+    if (!trainer?.email) {
+      console.log('Trainer email not found, skipping notification')
+      return
+    }
+
+    // Get branding settings for portal URL
+    const { data: branding } = await supabase
+      .from('branding_settings')
+      .select('portal_slug')
+      .eq('trainer_id', customer.trainer_id)
+      .single()
+
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://coachapro.com'
+    // Trainer chat URL goes to the trainer dashboard
+    const chatUrl = `${appUrl}/trainer`
+
+    await sendMessageNotificationEmail({
+      to_email: trainer.email,
+      to_name: trainer.full_name || 'Trainer',
+      sender_name: customer.full_name || 'A client',
+      sender_role: 'Your Client',
+      message_preview: messageContent,
+      chat_url: chatUrl,
+    })
+  } catch (error) {
+    console.error('Error sending trainer notification:', error)
   }
 }
 
