@@ -136,11 +136,13 @@ export async function POST(
       throw error
     }
 
-    // Send email notification to customer (non-blocking)
+    // Send email notification to customer (must await for serverless)
     if (session.trainerId) {
-      sendCustomerNotification(supabase, id, session.trainerId, content.trim()).catch(err => {
+      try {
+        await sendCustomerNotification(supabase, id, session.trainerId, content.trim())
+      } catch (err) {
         console.error('Failed to send customer notification:', err)
-      })
+      }
     }
 
     return NextResponse.json(

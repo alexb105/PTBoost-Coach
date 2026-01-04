@@ -155,10 +155,12 @@ export async function POST(
       throw error
     }
 
-    // Send email notification to trainer (non-blocking)
-    sendTrainerNotification(supabase, session.userId, content.trim()).catch(err => {
+    // Send email notification to trainer (must await for serverless)
+    try {
+      await sendTrainerNotification(supabase, session.userId, content.trim())
+    } catch (err) {
       console.error('Failed to send trainer notification:', err)
-    })
+    }
 
     return NextResponse.json(
       { message: data, success: 'Message sent successfully' },
