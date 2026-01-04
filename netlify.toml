@@ -1,6 +1,10 @@
 [build]
   command = "npm run build"
   publish = ".next"
+  
+# Ensure Next.js API routes work correctly on Netlify
+[functions]
+  node_bundler = "esbuild"
 
 # Configure secrets scanning to ignore expected public environment variables
 # NEXT_PUBLIC_* variables are intentionally bundled into the client bundle

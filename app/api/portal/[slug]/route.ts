@@ -7,7 +7,10 @@ export async function GET(
   { params }: { params: Promise<{ slug: string }> }
 ) {
   try {
-    const { slug } = await params
+    const { slug: rawSlug } = await params
+    // Decode the slug in case it was URL encoded
+    const slug = decodeURIComponent(rawSlug)
+    console.log(`Portal API: Received slug: ${rawSlug}, decoded: ${slug}`)
     const supabase = createServerClient()
 
     // Find branding settings by portal_slug
@@ -67,8 +70,16 @@ export async function GET(
     })
   } catch (error: any) {
     console.error('Error fetching portal branding:', error)
+    console.error('Error details:', {
+      message: error?.message,
+      stack: error?.stack,
+      name: error?.name,
+    })
     return NextResponse.json(
-      { error: 'Failed to fetch portal' },
+      { 
+        error: 'Failed to fetch portal',
+        details: process.env.NODE_ENV === 'development' ? error?.message : undefined
+      },
       { status: 500 }
     )
   }

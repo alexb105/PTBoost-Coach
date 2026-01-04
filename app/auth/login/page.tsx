@@ -47,7 +47,14 @@ function LoginPageContent() {
           // If slug is provided, fetch branding by portal slug
           try {
             console.log(`Fetching branding for slug: ${slug}`)
-            const portalResponse = await fetch(`/api/portal/${slug}`)
+            const portalResponse = await fetch(`/api/portal/${slug}`, {
+              method: 'GET',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              cache: 'no-store',
+            })
+            
             if (portalResponse.ok) {
               const portalData = await portalResponse.json()
               console.log('Portal branding loaded:', portalData)
@@ -59,7 +66,8 @@ function LoginPageContent() {
               return
             } else {
               // Portal not found - fall back to default branding
-              console.log(`Portal not found for slug: ${slug}, using default branding`)
+              const errorData = await portalResponse.json().catch(() => ({}))
+              console.log(`Portal not found for slug: ${slug}, status: ${portalResponse.status}`, errorData)
             }
           } catch (error) {
             // Error fetching portal - fall back to default branding
