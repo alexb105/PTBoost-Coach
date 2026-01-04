@@ -191,10 +191,10 @@ async function sendCustomerNotification(
       .single()
 
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://coachapro.com'
-    // Customer chat URL goes to the portal or main chat
+    // Customer chat URL goes to the login page with portal branding, then they navigate to chat
     const chatUrl = branding?.portal_slug 
-      ? `${appUrl}/portal/${branding.portal_slug}`
-      : `${appUrl}/chat`
+      ? `${appUrl}/auth/login?portal=${encodeURIComponent(branding.portal_slug)}`
+      : `${appUrl}/auth/login`
 
     const senderName = trainer?.full_name || trainer?.business_name || branding?.brand_name || 'Your Trainer'
 
