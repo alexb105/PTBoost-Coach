@@ -128,14 +128,14 @@ export default function ExercisePage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center" style={{ paddingBottom: 'calc(5rem + env(safe-area-inset-bottom, 0px))' }}>
+      <div className="min-h-screen flex items-center justify-center pb-bottom-nav">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen" style={{ paddingBottom: 'calc(5rem + env(safe-area-inset-bottom, 0px))' }}>
+    <div className="min-h-screen pb-bottom-nav">
       <ClientHeader />
       <div className="mx-auto max-w-3xl p-4 sm:p-6 space-y-4 sm:space-y-6">
         {/* Header */}

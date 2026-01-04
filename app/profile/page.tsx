@@ -137,7 +137,7 @@ function ProfilePageContent() {
   }
 
   return (
-    <main className="min-h-screen" style={{ paddingBottom: 'calc(5rem + env(safe-area-inset-bottom, 0px))' }}>
+    <main className="min-h-screen pb-bottom-nav">
       <ClientHeader />
       <div className="mx-auto max-w-2xl px-4 py-8">
         <Button

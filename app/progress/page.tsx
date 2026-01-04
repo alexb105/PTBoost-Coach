@@ -3,7 +3,7 @@ import { ClientHeader } from "@/components/client-header"
 
 export default function ProgressPage() {
   return (
-    <main className="min-h-screen" style={{ paddingBottom: 'calc(5rem + env(safe-area-inset-bottom, 0px))' }}>
+    <main className="min-h-screen pb-bottom-nav">
       <ClientHeader />
       <ProgressTracker />
     </main>

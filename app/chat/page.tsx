@@ -3,7 +3,7 @@ import { ClientHeader } from "@/components/client-header"
 
 export default function ChatPage() {
   return (
-    <main className="flex flex-col h-screen" style={{ paddingBottom: 'calc(5rem + env(safe-area-inset-bottom, 0px))' }}>
+    <main className="flex flex-col h-screen pb-bottom-nav">
       <ClientHeader />
       <div className="flex-1 overflow-hidden min-h-0">
         <ChatInterface />

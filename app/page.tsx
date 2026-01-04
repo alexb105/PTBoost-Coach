@@ -199,7 +199,7 @@ export default function SessionsPage() {
 
   if (loading) {
     return (
-      <main className="flex min-h-screen items-center justify-center pb-safe" style={{ paddingBottom: 'calc(5rem + env(safe-area-inset-bottom, 0px))' }}>
+      <main className="flex min-h-screen items-center justify-center pb-bottom-nav">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </main>
     )
@@ -209,7 +209,7 @@ export default function SessionsPage() {
     // Show summary view for completed workouts, detail view for incomplete ones
     if (selectedWorkout.completed) {
       return (
-        <main className="min-h-screen" style={{ paddingBottom: 'calc(5rem + env(safe-area-inset-bottom, 0px))' }}>
+        <main className="min-h-screen pb-bottom-nav">
           <ClientHeader />
           <WorkoutSummaryView
             workout={selectedWorkout}
@@ -220,7 +220,7 @@ export default function SessionsPage() {
     }
     
     return (
-      <main className="min-h-screen" style={{ paddingBottom: 'calc(5rem + env(safe-area-inset-bottom, 0px))' }}>
+      <main className="min-h-screen pb-bottom-nav">
         <ClientHeader />
         <WorkoutDetailView
           workout={selectedWorkout}
@@ -235,7 +235,7 @@ export default function SessionsPage() {
   }
 
   return (
-    <main className="min-h-screen" style={{ paddingBottom: 'calc(5rem + env(safe-area-inset-bottom, 0px))' }}>
+    <main className="min-h-screen pb-bottom-nav">
       <ClientHeader />
       <WeekView 
         workouts={workouts} 

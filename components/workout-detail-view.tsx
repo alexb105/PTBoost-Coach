@@ -476,7 +476,7 @@ export function WorkoutDetailView({ workout, onBack, onComplete, onUncomplete, o
   const isCardio = selectedExercise?.exercise_type === "cardio"
 
   return (
-    <div className="mx-auto max-w-3xl p-4 sm:p-6 space-y-4 sm:space-y-6" style={{ paddingBottom: 'calc(5rem + env(safe-area-inset-bottom, 0px))' }}>
+    <div className="mx-auto max-w-3xl p-4 sm:p-6 space-y-4 sm:space-y-6">
       {/* Header */}
       <div className="flex items-center gap-4">
         <Button

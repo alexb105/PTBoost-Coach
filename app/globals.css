@@ -168,6 +168,17 @@
     padding-bottom: max(0.75rem, var(--safe-area-inset-bottom));
   }
   
+  /* Bottom navigation spacing for client pages */
+  .pb-bottom-nav {
+    padding-bottom: calc(5rem + var(--safe-area-inset-bottom) + 1rem);
+  }
+  
+  @media (min-width: 640px) {
+    .pb-bottom-nav {
+      padding-bottom: 0;
+    }
+  }
+  
   .pl-safe {
     padding-left: max(1rem, var(--safe-area-inset-left));
   }

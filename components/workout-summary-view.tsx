@@ -371,7 +371,7 @@ export function WorkoutSummaryView({ workout, onBack, customerId }: WorkoutSumma
   }
 
   return (
-    <div className="mx-auto max-w-4xl p-4 sm:p-6 space-y-4 sm:space-y-6" style={{ paddingBottom: 'calc(5rem + env(safe-area-inset-bottom, 0px))' }}>
+    <div className="mx-auto max-w-4xl p-4 sm:p-6 space-y-4 sm:space-y-6">
       {/* Header */}
       <div className="flex items-center gap-4">
         <Button
