@@ -16,7 +16,6 @@ interface BrandingSettings {
   brand_name: string
   tagline: string
   logo_url: string | null
-  secondary_color: string
   admin_profile_picture_url: string | null
   admin_name: string | null
 }
@@ -30,7 +29,6 @@ export default function BrandingPage() {
     brand_name: "coachapro",
     tagline: "Elite Personal Training Platform",
     logo_url: null,
-    secondary_color: "#3b82f6",
     admin_profile_picture_url: null,
     admin_name: null,
   })
@@ -185,7 +183,6 @@ export default function BrandingPage() {
           brand_name: settings.brand_name,
           tagline: settings.tagline,
           logo_url: logoUrl,
-          secondary_color: settings.secondary_color,
           admin_profile_picture_url: profilePictureUrl,
           admin_name: null,
         }),
@@ -379,31 +376,6 @@ export default function BrandingPage() {
                 </div>
               </div>
 
-              {/* Secondary Color */}
-              <div className="space-y-2">
-                <Label htmlFor="secondary_color">Secondary Color</Label>
-                <div className="flex items-center gap-4">
-                  <Input
-                    id="secondary_color"
-                    type="color"
-                    value={settings.secondary_color}
-                    onChange={(e) => setSettings({ ...settings, secondary_color: e.target.value })}
-                    className="h-12 w-24 cursor-pointer"
-                  />
-                  <Input
-                    type="text"
-                    value={settings.secondary_color}
-                    onChange={(e) => setSettings({ ...settings, secondary_color: e.target.value })}
-                    placeholder="#3b82f6"
-                    pattern="^#[0-9A-Fa-f]{6}$"
-                    className="flex-1"
-                  />
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  This color is used for buttons, links, and accents throughout the app
-                </p>
-              </div>
-
               {/* Preview */}
               <div className="space-y-2">
                 <Label>Preview</Label>
@@ -429,7 +401,6 @@ export default function BrandingPage() {
                       )}
                       <Button
                         type="button"
-                        style={{ backgroundColor: settings.secondary_color }}
                         className="mt-4"
                       >
                         Sign In

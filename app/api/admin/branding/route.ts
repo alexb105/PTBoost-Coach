@@ -22,7 +22,6 @@ export async function GET(request: NextRequest) {
         brand_name: 'coachapro',
         tagline: 'Elite Personal Training Platform',
         logo_url: null,
-        secondary_color: '#3b82f6',
         admin_profile_picture_url: null,
         admin_name: null,
       })
@@ -43,7 +42,6 @@ export async function GET(request: NextRequest) {
           brand_name: 'coachapro',
           tagline: 'Elite Personal Training Platform',
           logo_url: null,
-          secondary_color: '#3b82f6',
           admin_profile_picture_url: null,
           admin_name: null,
         })
@@ -55,7 +53,6 @@ export async function GET(request: NextRequest) {
       brand_name: 'coachapro',
       tagline: 'Elite Personal Training Platform',
       logo_url: null,
-      secondary_color: '#3b82f6',
       admin_profile_picture_url: null,
       admin_name: null,
     })
@@ -88,7 +85,7 @@ export async function PUT(request: NextRequest) {
       )
     }
 
-    const { brand_name, tagline, logo_url, secondary_color, admin_profile_picture_url, admin_name } = await request.json()
+    const { brand_name, tagline, logo_url, admin_profile_picture_url, admin_name } = await request.json()
 
     if (!brand_name) {
       return NextResponse.json(
@@ -116,7 +113,6 @@ export async function PUT(request: NextRequest) {
           brand_name,
           tagline: tagline || null,
           logo_url: logo_url || null,
-          secondary_color: secondary_color || '#3b82f6',
           admin_profile_picture_url: admin_profile_picture_url || null,
           admin_name: admin_name || null,
         })
@@ -135,7 +131,6 @@ export async function PUT(request: NextRequest) {
           brand_name,
           tagline: tagline || null,
           logo_url: logo_url || null,
-          secondary_color: secondary_color || '#3b82f6',
           admin_profile_picture_url: admin_profile_picture_url || null,
           admin_name: admin_name || null,
         })

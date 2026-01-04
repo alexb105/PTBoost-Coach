@@ -14,7 +14,6 @@ export async function GET(request: NextRequest) {
       brand_name: 'coachapro',
       tagline: 'Elite Personal Training Platform',
       logo_url: null,
-      secondary_color: '#3b82f6',
       admin_profile_picture_url: null,
       admin_name: null,
     }
@@ -73,7 +72,6 @@ export async function GET(request: NextRequest) {
       brand_name: 'coachapro',
       tagline: 'Elite Personal Training Platform',
       logo_url: null,
-      secondary_color: '#3b82f6',
       admin_profile_picture_url: null,
       admin_name: null,
     })
