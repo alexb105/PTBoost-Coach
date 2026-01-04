@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Shield, Loader2, Upload, Image as ImageIcon, Palette, User } from "lucide-react"
+import { Shield, Loader2, Upload, Image as ImageIcon, Palette, User, Link2, Copy, Check, ExternalLink } from "lucide-react"
 import { toast } from "sonner"
 import { useLanguage } from "@/contexts/language-context"
 import { LanguageSelector } from "@/components/language-selector"
@@ -18,6 +18,7 @@ interface BrandingSettings {
   logo_url: string | null
   admin_profile_picture_url: string | null
   admin_name: string | null
+  portal_slug: string | null
 }
 
 export default function BrandingPage() {
@@ -31,7 +32,10 @@ export default function BrandingPage() {
     logo_url: null,
     admin_profile_picture_url: null,
     admin_name: null,
+    portal_slug: null,
   })
+  const [copied, setCopied] = useState(false)
+  const [baseUrl, setBaseUrl] = useState('')
   const [logoFile, setLogoFile] = useState<File | null>(null)
   const [logoPreview, setLogoPreview] = useState<string | null>(null)
   const [profilePictureFile, setProfilePictureFile] = useState<File | null>(null)
@@ -40,6 +44,10 @@ export default function BrandingPage() {
   useEffect(() => {
     checkAdminSession()
     fetchBrandingSettings()
+    // Set base URL dynamically for client-side
+    if (typeof window !== 'undefined') {
+      setBaseUrl(window.location.origin)
+    }
   }, [])
 
   const checkAdminSession = async () => {
@@ -185,6 +193,7 @@ export default function BrandingPage() {
           logo_url: logoUrl,
           admin_profile_picture_url: profilePictureUrl,
           admin_name: null,
+          portal_slug: settings.portal_slug,
         }),
       })
 
@@ -328,6 +337,78 @@ export default function BrandingPage() {
                     </p>
                   </div>
                 </div>
+              </div>
+
+              {/* Portal URL */}
+              <div className="space-y-2">
+                <Label htmlFor="portal_slug" className="flex items-center gap-2">
+                  <Link2 className="h-4 w-4" />
+                  Client Portal URL Slug
+                </Label>
+                <div className="flex gap-2">
+                  <div className="flex-1 flex items-center gap-0">
+                    <div className="h-11 px-3 flex items-center bg-muted border border-r-0 rounded-l-md text-sm text-muted-foreground">
+                      {baseUrl || 'https://yourdomain.com'}/auth/login?slug=
+                    </div>
+                    <Input
+                      id="portal_slug"
+                      type="text"
+                      placeholder="your-brand-name"
+                      value={settings.portal_slug || ''}
+                      onChange={(e) => {
+                        // Convert to URL-friendly slug
+                        const slug = e.target.value
+                          .toLowerCase()
+                          .replace(/[^a-z0-9\s-]/g, '')
+                          .replace(/\s+/g, '-')
+                          .replace(/-+/g, '-')
+                        setSettings({ ...settings, portal_slug: slug || null })
+                      }}
+                      className="rounded-l-none h-11"
+                    />
+                  </div>
+                  {settings.portal_slug && (
+                    <>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        className="h-11 w-11"
+                        onClick={() => {
+                          const url = `${baseUrl || window.location.origin}/auth/login?slug=${settings.portal_slug}`
+                          navigator.clipboard.writeText(url)
+                          setCopied(true)
+                          toast.success("URL copied to clipboard!")
+                          setTimeout(() => setCopied(false), 2000)
+                        }}
+                      >
+                        {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        className="h-11 w-11"
+                        onClick={() => {
+                          window.open(`/auth/login?slug=${settings.portal_slug}`, '_blank')
+                        }}
+                      >
+                        <ExternalLink className="h-4 w-4" />
+                      </Button>
+                    </>
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Share this custom URL with your clients. They&apos;ll see your branding when logging in.
+                </p>
+                {settings.portal_slug && (
+                  <div className="p-3 bg-primary/5 border border-primary/20 rounded-lg">
+                    <p className="text-sm font-medium text-primary">Your shareable link:</p>
+                    <p className="text-sm text-muted-foreground break-all">
+                      {baseUrl || 'https://yourdomain.com'}/auth/login?slug={settings.portal_slug}
+                    </p>
+                  </div>
+                )}
               </div>
 
               {/* Admin Profile Picture Upload */}

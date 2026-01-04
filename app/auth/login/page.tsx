@@ -1,8 +1,8 @@
 "use client"
 
 import type React from "react"
-import { useState, useEffect } from "react"
-import { useRouter } from "next/navigation"
+import { useState, useEffect, Suspense } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -19,11 +19,11 @@ interface BrandingSettings {
   brand_name: string
   tagline: string
   logo_url: string | null
-  secondary_color: string
 }
 
-export default function LoginPage() {
+function LoginPageContent() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { t } = useLanguage()
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
@@ -33,43 +33,61 @@ export default function LoginPage() {
     brand_name: "coachapro",
     tagline: "Elite Personal Training Platform",
     logo_url: null,
-    secondary_color: "#3b82f6",
   })
 
   // Load branding settings and remembered credentials on mount
   useEffect(() => {
     const loadBranding = async () => {
       try {
+        // Check for query parameters: trainer_id or slug
+        const trainerId = searchParams.get('trainer_id')
+        const slug = searchParams.get('slug')
+        
+        if (slug) {
+          // If slug is provided, fetch branding by portal slug
+          try {
+            console.log(`Fetching branding for slug: ${slug}`)
+            const portalResponse = await fetch(`/api/portal/${slug}`)
+            if (portalResponse.ok) {
+              const portalData = await portalResponse.json()
+              console.log('Portal branding loaded:', portalData)
+              setBranding({
+                brand_name: portalData.brand_name,
+                tagline: portalData.tagline || "Elite Personal Training Platform",
+                logo_url: portalData.logo_url,
+              })
+              return
+            } else {
+              // Portal not found - fall back to default branding
+              console.log(`Portal not found for slug: ${slug}, using default branding`)
+            }
+          } catch (error) {
+            // Error fetching portal - fall back to default branding
+            console.error("Error fetching portal branding:", error)
+          }
+        } else if (trainerId) {
+          // If trainer_id is provided, fetch branding with that parameter
+          const response = await fetch(`/api/branding?trainer_id=${trainerId}`)
+          if (response.ok) {
+            const data = await response.json()
+            setBranding({
+              brand_name: data.brand_name,
+              tagline: data.tagline || "Elite Personal Training Platform",
+              logo_url: data.logo_url,
+            })
+            return
+          }
+        }
+        
+        // Default branding (no slug or trainer_id provided)
         const response = await fetch("/api/branding")
         if (response.ok) {
           const data = await response.json()
-          setBranding(data)
-          
-          // Apply secondary color as CSS variable with OKLCH conversion for iOS compatibility
-          if (typeof document !== "undefined" && data.secondary_color) {
-            const hex = data.secondary_color.replace('#', '')
-            const r = parseInt(hex.substring(0, 2), 16)
-            const g = parseInt(hex.substring(2, 4), 16)
-            const b = parseInt(hex.substring(4, 6), 16)
-            
-            // Convert to OKLCH for Tailwind 4 compatibility
-            const rNorm = r / 255, gNorm = g / 255, bNorm = b / 255
-            const toLinear = (c: number) => c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4)
-            const rLin = toLinear(rNorm), gLin = toLinear(gNorm), bLin = toLinear(bNorm)
-            const x = 0.4124564 * rLin + 0.3575761 * gLin + 0.1804375 * bLin
-            const y = 0.2126729 * rLin + 0.7151522 * gLin + 0.0721750 * bLin
-            const z = 0.0193339 * rLin + 0.1191920 * gLin + 0.9503041 * bLin
-            const L = Math.cbrt(y)
-            const a_lab = (Math.cbrt(x / 0.95047) - Math.cbrt(y)) * 500
-            const b_lab = (Math.cbrt(y) - Math.cbrt(z / 1.08883)) * 200
-            const C = Math.sqrt(a_lab * a_lab + b_lab * b_lab) / 100
-            const H = (Math.atan2(b_lab, a_lab) * 180 / Math.PI + 360) % 360
-            
-            const oklchValue = `oklch(${L.toFixed(3)} ${(C * 0.4).toFixed(3)} ${H.toFixed(1)})`
-            document.documentElement.style.setProperty("--secondary", oklchValue)
-            document.documentElement.style.setProperty("--primary", oklchValue)
-            document.documentElement.style.setProperty("--brand-color", data.secondary_color)
-          }
+          setBranding({
+            brand_name: data.brand_name,
+            tagline: data.tagline || "Elite Personal Training Platform",
+            logo_url: data.logo_url,
+          })
         }
       } catch (error) {
         console.error("Failed to load branding settings:", error)
@@ -91,7 +109,7 @@ export default function LoginPage() {
         console.error("Failed to load remembered credentials:", error)
       }
     }
-  }, [])
+  }, [searchParams])
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -196,14 +214,7 @@ export default function LoginPage() {
                   </Label>
                   <button 
                     type="button" 
-                    className="text-xs transition-colors"
-                    style={{ color: branding.secondary_color }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.opacity = "0.8"
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.opacity = "1"
-                    }}
+                    className="text-xs text-primary transition-colors hover:opacity-80"
                   >
                     {t("auth.forgotPassword")}
                   </button>
@@ -234,7 +245,6 @@ export default function LoginPage() {
               <Button 
                 type="submit" 
                 className="h-11 w-full font-medium shadow-lg shadow-primary/20"
-                style={{ backgroundColor: branding.secondary_color }}
                 disabled={loading}
               >
                 {loading ? (
@@ -253,14 +263,7 @@ export default function LoginPage() {
                 <p className="text-xs text-muted-foreground">
                   {t("auth.noAccount")}{" "}
                   <button 
-                    className="transition-colors font-medium"
-                    style={{ color: branding.secondary_color }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.opacity = "0.8"
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.opacity = "1"
-                    }}
+                    className="text-primary transition-colors font-medium hover:opacity-80"
                   >
                     {t("auth.contactTrainer")}
                   </button>
@@ -273,5 +276,17 @@ export default function LoginPage() {
         <p className="mt-6 text-center text-xs text-muted-foreground">{t("auth.securityMessage")}</p>
       </div>
     </main>
+  )
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={
+      <main className="flex min-h-screen items-center justify-center bg-gradient-to-br from-background via-background to-background/95 p-4">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </main>
+    }>
+      <LoginPageContent />
+    </Suspense>
   )
 }

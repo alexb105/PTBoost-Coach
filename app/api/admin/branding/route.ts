@@ -85,7 +85,7 @@ export async function PUT(request: NextRequest) {
       )
     }
 
-    const { brand_name, tagline, logo_url, admin_profile_picture_url, admin_name } = await request.json()
+    const { brand_name, tagline, logo_url, admin_profile_picture_url, admin_name, portal_slug } = await request.json()
 
     if (!brand_name) {
       return NextResponse.json(
@@ -95,6 +95,24 @@ export async function PUT(request: NextRequest) {
     }
 
     const supabase = createServerClient()
+
+    // Validate portal_slug uniqueness if provided
+    if (portal_slug) {
+      const { data: existingSlug } = await supabase
+        .from('branding_settings')
+        .select('trainer_id')
+        .eq('portal_slug', portal_slug)
+        .neq('trainer_id', session.trainerId)
+        .limit(1)
+        .maybeSingle()
+
+      if (existingSlug) {
+        return NextResponse.json(
+          { error: 'This portal URL is already taken. Please choose a different one.' },
+          { status: 400 }
+        )
+      }
+    }
 
     // Check if settings exist for this trainer
     const { data: existing } = await supabase
@@ -115,6 +133,7 @@ export async function PUT(request: NextRequest) {
           logo_url: logo_url || null,
           admin_profile_picture_url: admin_profile_picture_url || null,
           admin_name: admin_name || null,
+          portal_slug: portal_slug || null,
         })
         .eq('id', existing.id)
         .select()
@@ -133,6 +152,7 @@ export async function PUT(request: NextRequest) {
           logo_url: logo_url || null,
           admin_profile_picture_url: admin_profile_picture_url || null,
           admin_name: admin_name || null,
+          portal_slug: portal_slug || null,
         })
         .select()
         .single()
