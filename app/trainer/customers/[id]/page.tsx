@@ -6,7 +6,7 @@ import { useRouter, useParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { ArrowLeft, User, Calendar, MessageCircle, Apple, Plus, Send, Loader2, X, Trash2, Pencil, BookOpen, Save, CheckCircle2, TrendingUp, Camera, Flame, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Eye, Lock, Heart, Reply, FileText } from "lucide-react"
+import { ArrowLeft, User, Calendar, MessageCircle, Apple, Plus, Send, Loader2, X, Trash2, Pencil, BookOpen, Save, CheckCircle2, TrendingUp, Camera, Flame, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, Eye, Lock, Heart, Reply, FileText, MoreVertical } from "lucide-react"
 import { format, parseISO } from "date-fns"
 import { toast } from "sonner"
 import { Input } from "@/components/ui/input"
@@ -14,6 +14,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
@@ -1898,60 +1899,104 @@ export default function CustomerDetailPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-background/95 pb-20">
       {/* Header */}
-      <header className="border-b bg-card/50 backdrop-blur-xl">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center gap-4">
-            <Button variant="ghost" size="icon" onClick={() => router.push("/trainer")}>
-              <ArrowLeft className="h-4 w-4" />
-            </Button>
-            <div className="flex items-center gap-3">
-              <Avatar>
+      <header className="border-b bg-card/50 backdrop-blur-xl" style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}>
+        <div className="container mx-auto px-4 py-3">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 min-w-0 flex-1">
+              <Button variant="ghost" size="icon" className="shrink-0" onClick={() => router.push("/trainer")}>
+                <ArrowLeft className="h-4 w-4" />
+              </Button>
+              <Avatar className="shrink-0">
                 <AvatarFallback className="bg-primary text-primary-foreground">
                   {customer.full_name?.[0]?.toUpperCase() || customer.email[0].toUpperCase()}
                 </AvatarFallback>
               </Avatar>
-              <div>
-                <h1 className="text-xl font-semibold">{customer.full_name || "Customer"}</h1>
-                <p className="text-xs text-muted-foreground">{customer.email}</p>
-              </div>
-              <div className="ml-auto flex gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={async () => {
-                    setIsNotesDialogOpen(true)
-                    await fetchNotes()
-                  }}
-                >
-                  <FileText className="mr-1 h-4 w-4" />
-                  Notes
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    setCustomerForm({
-                      full_name: customer.full_name || "",
-                      phone: customer.phone || "",
-                      email: customer.email || "",
-                    })
-                    setIsEditCustomerDialogOpen(true)
-                  }}
-                >
-                  <Pencil className="mr-1 h-4 w-4" />
-                  {t("admin.editDetails")}
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setIsUpdatePasswordDialogOpen(true)}
-                >
-                  <Lock className="mr-1 h-4 w-4" />
-                  {t("admin.updatePassword")}
-                </Button>
+              <div className="min-w-0 flex-1">
+                <h1 className="text-lg font-semibold truncate">{customer.full_name || "Customer"}</h1>
+                <p className="text-xs text-muted-foreground truncate">{customer.email}</p>
               </div>
             </div>
-            <LanguageSelector />
+            
+            {/* Desktop buttons - hidden on mobile */}
+            <div className="hidden md:flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={async () => {
+                  setIsNotesDialogOpen(true)
+                  await fetchNotes()
+                }}
+              >
+                <FileText className="mr-1 h-4 w-4" />
+                Notes
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setCustomerForm({
+                    full_name: customer.full_name || "",
+                    phone: customer.phone || "",
+                    email: customer.email || "",
+                  })
+                  setIsEditCustomerDialogOpen(true)
+                }}
+              >
+                <Pencil className="mr-1 h-4 w-4" />
+                {t("admin.editDetails")}
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setIsUpdatePasswordDialogOpen(true)}
+              >
+                <Lock className="mr-1 h-4 w-4" />
+                {t("admin.updatePassword")}
+              </Button>
+              <LanguageSelector />
+            </div>
+
+            {/* Mobile dropdown menu */}
+            <div className="flex md:hidden items-center gap-1">
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon" className="shrink-0">
+                    <MoreVertical className="h-5 w-5" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-48">
+                  <DropdownMenuItem
+                    onClick={async () => {
+                      setIsNotesDialogOpen(true)
+                      await fetchNotes()
+                    }}
+                  >
+                    <FileText className="mr-2 h-4 w-4" />
+                    Notes
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => {
+                      setCustomerForm({
+                        full_name: customer.full_name || "",
+                        phone: customer.phone || "",
+                        email: customer.email || "",
+                      })
+                      setIsEditCustomerDialogOpen(true)
+                    }}
+                  >
+                    <Pencil className="mr-2 h-4 w-4" />
+                    {t("admin.editDetails")}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onClick={() => setIsUpdatePasswordDialogOpen(true)}
+                  >
+                    <Lock className="mr-2 h-4 w-4" />
+                    {t("admin.updatePassword")}
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+              <LanguageSelector />
+            </div>
           </div>
         </div>
       </header>
@@ -2009,27 +2054,27 @@ export default function CustomerDetailPage() {
             }} 
             className="w-full"
           >
-          <TabsList className="grid w-full grid-cols-4 mb-6">
-            <TabsTrigger value="workouts" className="gap-2">
+          <TabsList className="grid w-full grid-cols-4 mb-6 h-[50px]">
+            <TabsTrigger value="workouts" className="gap-1 min-[450px]:gap-2">
               <Calendar className="h-4 w-4" />
-              Workouts
+              <span className="hidden min-[450px]:inline">Workouts</span>
             </TabsTrigger>
-            <TabsTrigger value="chat" className="gap-2 relative">
+            <TabsTrigger value="chat" className="gap-1 min-[450px]:gap-2 relative">
               <div className="relative">
                 <MessageCircle className="h-4 w-4" />
                 {chatHasUnread && activeTab !== "chat" && (
                   <span className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-destructive" />
                 )}
               </div>
-              Chat
+              <span className="hidden min-[450px]:inline">Chat</span>
             </TabsTrigger>
-            <TabsTrigger value="nutrition" className="gap-2">
+            <TabsTrigger value="nutrition" className="gap-1 min-[450px]:gap-2">
               <Apple className="h-4 w-4" />
-              Nutrition
+              <span className="hidden min-[450px]:inline">Nutrition</span>
             </TabsTrigger>
-            <TabsTrigger value="progress" className="gap-2">
+            <TabsTrigger value="progress" className="gap-1 min-[450px]:gap-2">
               <TrendingUp className="h-4 w-4" />
-              Progress
+              <span className="hidden min-[450px]:inline">Progress</span>
             </TabsTrigger>
           </TabsList>
 
