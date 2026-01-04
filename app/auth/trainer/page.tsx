@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Dumbbell, ArrowLeft, Loader2, Sparkles } from "lucide-react"
 import Link from "next/link"
 import { toast } from "sonner"
@@ -15,6 +16,7 @@ export default function TrainerLoginPage() {
   const router = useRouter()
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
+  const [rememberMe, setRememberMe] = useState(false)
   const [loading, setLoading] = useState(false)
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -27,7 +29,8 @@ export default function TrainerLoginPage() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ email, password }),
+        credentials: 'include',
+        body: JSON.stringify({ email, password, rememberMe }),
       })
 
       const data = await response.json()
@@ -116,6 +119,20 @@ export default function TrainerLoginPage() {
                   required
                   className="h-11 bg-slate-800/50 border-slate-700 text-white placeholder:text-slate-500 focus:border-emerald-500 focus:ring-emerald-500/20"
                 />
+              </div>
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="remember-me"
+                  checked={rememberMe}
+                  onCheckedChange={(checked) => setRememberMe(checked === true)}
+                  className="border-slate-600 data-[state=checked]:bg-emerald-500 data-[state=checked]:border-emerald-500"
+                />
+                <Label
+                  htmlFor="remember-me"
+                  className="text-sm font-normal cursor-pointer leading-none text-slate-400 peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                >
+                  Remember me for 30 days
+                </Label>
               </div>
               <Button 
                 type="submit" 

@@ -370,7 +370,7 @@ export function ChatInterface() {
         const response = await fetch("/api/branding")
         if (response.ok) {
           const data = await response.json()
-          setAdminProfilePicture(data.admin_profile_picture_url || "/trainer-avatar.jpg")
+          setAdminProfilePicture(data.admin_profile_picture_url || null)
           setTrainerFirstName(null)
         }
         return
@@ -380,13 +380,13 @@ export function ChatInterface() {
       const response = await fetch(`/api/branding?trainer_id=${trainerId}`)
       if (response.ok) {
         const data = await response.json()
-        setAdminProfilePicture(data.admin_profile_picture_url || "/trainer-avatar.jpg")
+        setAdminProfilePicture(data.admin_profile_picture_url || null)
         setTrainerFirstName(data.trainer_first_name || null)
       }
     } catch (error) {
       console.error("Failed to fetch admin profile picture:", error)
-      // Fallback to default
-      setAdminProfilePicture("/trainer-avatar.jpg")
+      // No fallback - just use avatar initials
+      setAdminProfilePicture(null)
       setTrainerFirstName(null)
     }
   }
@@ -781,8 +781,10 @@ export function ChatInterface() {
       <div className="flex-shrink-0 border-b border-border bg-card p-3 sm:p-4">
         <div className="mx-auto flex max-w-2xl items-center gap-3">
           <Avatar>
-            <AvatarImage src={adminProfilePicture || "/trainer-avatar.jpg"} />
-            <AvatarFallback className="bg-primary text-primary-foreground">JD</AvatarFallback>
+            {adminProfilePicture && <AvatarImage src={adminProfilePicture} />}
+            <AvatarFallback className="bg-primary text-primary-foreground">
+              {trainerFirstName ? trainerFirstName.charAt(0).toUpperCase() : "C"}
+            </AvatarFallback>
           </Avatar>
           <div>
             <h1 className="font-semibold text-foreground">
@@ -837,8 +839,10 @@ export function ChatInterface() {
                 <div className={`flex max-w-[80%] gap-2 ${message.sender === "customer" ? "flex-row-reverse" : "flex-row"}`}>
                   {message.sender === "admin" && (
                     <Avatar className="h-8 w-8 flex-shrink-0">
-                      <AvatarImage src={adminProfilePicture || "/trainer-avatar.jpg"} />
-                      <AvatarFallback className="bg-primary text-primary-foreground text-xs">JD</AvatarFallback>
+                      {adminProfilePicture && <AvatarImage src={adminProfilePicture} />}
+                      <AvatarFallback className="bg-primary text-primary-foreground text-xs">
+                        {trainerFirstName ? trainerFirstName.charAt(0).toUpperCase() : "C"}
+                      </AvatarFallback>
                     </Avatar>
                   )}
                   <div className="space-y-1 flex-1 min-w-0">

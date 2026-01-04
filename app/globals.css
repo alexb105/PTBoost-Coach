@@ -160,6 +160,10 @@
     padding-top: max(0.75rem, var(--safe-area-inset-top));
   }
   
+  .mt-safe {
+    margin-top: var(--safe-area-inset-top);
+  }
+  
   .pb-safe {
     padding-bottom: max(0.75rem, var(--safe-area-inset-bottom));
   }

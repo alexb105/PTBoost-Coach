@@ -8,7 +8,7 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 
 export async function POST(request: NextRequest) {
   try {
-    const { email, password } = await request.json()
+    const { email, password, rememberMe } = await request.json()
 
     // Validate input
     if (!email || !password) {
@@ -110,8 +110,8 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Create session token
-    const sessionToken = createTrainerSessionToken(trainer.id, email)
+    // Create session token with rememberMe flag
+    const sessionToken = createTrainerSessionToken(trainer.id, email, !!rememberMe)
 
     // Create response with session cookie
     const response = NextResponse.json(
@@ -132,7 +132,7 @@ export async function POST(request: NextRequest) {
       { status: 200 }
     )
 
-    return setTrainerSessionCookie(response, sessionToken)
+    return setTrainerSessionCookie(response, sessionToken, !!rememberMe)
   } catch (error) {
     console.error('Trainer login error:', error)
     return NextResponse.json(

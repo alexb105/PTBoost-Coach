@@ -74,16 +74,18 @@ export async function checkTrainerSession(request: NextRequest): Promise<Trainer
 
 /**
  * Create a session token for a trainer
- * Session duration: 30 days by default for trainers
+ * Session duration: 30 days if rememberMe is true, otherwise 24 hours
  */
-export function createTrainerSessionToken(trainerId: string, email: string): string {
-  const sessionDurationMs = 30 * 24 * 60 * 60 * 1000 // 30 days
+export function createTrainerSessionToken(trainerId: string, email: string, rememberMe: boolean = false): string {
+  // 30 days if "Remember me" is checked, otherwise 24 hours
+  const sessionDurationMs = rememberMe ? 30 * 24 * 60 * 60 * 1000 : 24 * 60 * 60 * 1000
   return Buffer.from(
     JSON.stringify({
       trainerId,
       email,
       timestamp: Date.now(),
       expiresAt: Date.now() + sessionDurationMs,
+      rememberMe: !!rememberMe,
       role: 'trainer'
     })
   ).toString('base64')
@@ -91,14 +93,19 @@ export function createTrainerSessionToken(trainerId: string, email: string): str
 
 /**
  * Set the trainer session cookie on a response
- * iOS-compatible settings with 30-day session duration
+ * iOS-compatible settings with configurable session duration
+ * @param response - NextResponse object
+ * @param token - Session token
+ * @param rememberMe - If true, cookie lasts 30 days; otherwise 24 hours
  */
-export function setTrainerSessionCookie(response: NextResponse, token: string): NextResponse {
+export function setTrainerSessionCookie(response: NextResponse, token: string, rememberMe: boolean = false): NextResponse {
+  // 30 days if "Remember me" is checked, otherwise 24 hours
+  const sessionDurationSec = rememberMe ? 30 * 24 * 60 * 60 : 24 * 60 * 60
   response.cookies.set('trainer_session', token, {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'lax',
-    maxAge: 30 * 24 * 60 * 60, // 30 days
+    maxAge: sessionDurationSec,
     path: '/',
   })
   return response
