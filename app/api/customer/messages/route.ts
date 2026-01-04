@@ -175,28 +175,44 @@ export async function POST(
 
 // Helper function to send notification to trainer
 async function sendTrainerNotification(supabase: ReturnType<typeof createServerClient>, customerId: string, messageContent: string) {
+  console.log('📧 Starting trainer notification for customer:', customerId)
+  
   try {
     // Get customer info including trainer_id
-    const { data: customer } = await supabase
+    const { data: customer, error: customerError } = await supabase
       .from('customers')
       .select('full_name, trainer_id')
       .eq('id', customerId)
       .single()
 
+    if (customerError) {
+      console.error('❌ Error fetching customer:', customerError)
+      return
+    }
+
+    console.log('📧 Customer data:', { fullName: customer?.full_name, trainerId: customer?.trainer_id })
+
     if (!customer?.trainer_id) {
-      console.log('No trainer found for customer, skipping notification')
+      console.log('⚠️ No trainer_id found for customer, skipping notification')
       return
     }
 
     // Get trainer info
-    const { data: trainer } = await supabase
+    const { data: trainer, error: trainerError } = await supabase
       .from('trainers')
       .select('email, full_name')
       .eq('id', customer.trainer_id)
       .single()
 
+    if (trainerError) {
+      console.error('❌ Error fetching trainer:', trainerError)
+      return
+    }
+
+    console.log('📧 Trainer data:', { email: trainer?.email, fullName: trainer?.full_name })
+
     if (!trainer?.email) {
-      console.log('Trainer email not found, skipping notification')
+      console.log('⚠️ Trainer email not found, skipping notification')
       return
     }
 

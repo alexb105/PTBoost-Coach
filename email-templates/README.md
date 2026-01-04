@@ -47,6 +47,34 @@ This directory contains HTML email templates for use with EmailJS.
 
 ---
 
+### 3. `message-notification.html`
+**Purpose:** Email notifications for new messages between trainers and clients
+
+**Required Variables:**
+- `{{to_email}}` - Recipient email address
+- `{{to_name}}` - Recipient name
+- `{{sender_name}}` - Name of the person who sent the message
+- `{{sender_role}}` - Role of sender ("Your Trainer" or "Your Client")
+- `{{message_preview}}` - Preview of the message (truncated to 200 chars)
+- `{{chat_url}}` - URL to view the conversation
+- `{{app_name}}` - Application name (defaults to "CoachaPro")
+
+**How to use in EmailJS:**
+1. Go to EmailJS Dashboard > Email Templates
+2. Click "Create New Template"
+3. Name it "Message Notification" or similar
+4. Copy the HTML from `message-notification.html`
+5. Paste it into the template editor
+6. Make sure the variables match exactly: `{{to_email}}`, `{{to_name}}`, `{{sender_name}}`, `{{sender_role}}`, `{{message_preview}}`, `{{chat_url}}`, `{{app_name}}`
+7. Set the "To Email" field to `{{to_email}}`
+8. Set the "Subject" field to something like: `New message from {{sender_role}} - {{app_name}}`
+9. Save the template and note the Template ID
+10. Add the Template ID to your `.env.local` as `EMAILJS_MESSAGE_TEMPLATE_ID`
+
+**Note:** This template works for both trainer-to-client and client-to-trainer notifications. The `{{sender_role}}` variable will automatically show "Your Trainer" or "Your Client" depending on who sent the message.
+
+---
+
 ## Design Features
 
 Both templates include:
