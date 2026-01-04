@@ -17,7 +17,7 @@ const Toaster = ({ ...props }: ToasterProps) => {
       // Longer duration for mobile users
       duration={4000}
       // Close on swipe for iOS-like feel
-      closeButton
+      closeButton={false}
       style={
         {
           '--normal-bg': 'var(--popover)',
