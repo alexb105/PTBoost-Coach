@@ -224,40 +224,64 @@ export async function sendMessageNotificationEmail({
     return false
   }
   
-  try {
-    const templateParams = {
-      to_email,
-      to_name: to_name || 'there',
-      sender_name,
-      sender_role,
-      message_preview: truncatedPreview,
-      chat_url,
-      app_name,
-    }
-    
-    console.log('📧 EmailJS send attempt:', {
-      serviceId,
-      templateId,
-      params: { ...templateParams, message_preview: truncatedPreview.substring(0, 50) + '...' },
-    })
-    
-    const response = await emailjs.send(serviceId, templateId, templateParams)
-    
-    console.log('✅ Message notification email sent successfully:', {
-      status: response.status,
-      statusText: response.text,
-    })
-    return true
-  } catch (error: any) {
-    console.error('❌ Failed to send message notification email:', {
-      error: error,
-      message: error?.message,
-      status: error?.status,
-      text: error?.text,
-      details: error,
-    })
-    return false
+  const templateParams = {
+    to_email,
+    to_name: to_name || 'there',
+    sender_name,
+    sender_role,
+    message_preview: truncatedPreview,
+    chat_url,
+    app_name,
   }
+  
+  console.log('📧 EmailJS send attempt:', {
+    serviceId,
+    templateId,
+    params: { ...templateParams, message_preview: truncatedPreview.substring(0, 50) + '...' },
+  })
+  
+  // Retry up to 2 times with timeout
+  const maxRetries = 2
+  const timeoutMs = 8000 // 8 second timeout per attempt
+  
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      // Create a timeout promise
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error(`EmailJS timeout after ${timeoutMs}ms`)), timeoutMs)
+      })
+      
+      // Race between the email send and timeout
+      const response = await Promise.race([
+        emailjs.send(serviceId, templateId, templateParams),
+        timeoutPromise
+      ])
+      
+      console.log('✅ Message notification email sent successfully:', {
+        status: response.status,
+        statusText: response.text,
+        attempt,
+      })
+      return true
+    } catch (error: any) {
+      console.error(`❌ Failed to send message notification email (attempt ${attempt}/${maxRetries}):`, {
+        error: error?.message || error,
+        status: error?.status,
+        text: error?.text,
+      })
+      
+      // If this was the last attempt, return false
+      if (attempt === maxRetries) {
+        console.error('❌ All retry attempts failed for message notification')
+        return false
+      }
+      
+      // Wait a bit before retrying
+      await new Promise(resolve => setTimeout(resolve, 500))
+    }
+  }
+  
+  return false
 }
 
 /**
