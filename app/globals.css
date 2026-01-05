@@ -173,8 +173,16 @@
     padding-bottom: calc(5rem + var(--safe-area-inset-bottom) + 1rem);
   }
   
+  /* Flush against bottom nav (no extra gap) - for chat input etc */
+  .pb-bottom-nav-flush {
+    padding-bottom: calc(5rem + var(--safe-area-inset-bottom));
+  }
+  
   @media (min-width: 640px) {
     .pb-bottom-nav {
+      padding-bottom: 0;
+    }
+    .pb-bottom-nav-flush {
       padding-bottom: 0;
     }
   }

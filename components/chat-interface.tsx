@@ -49,6 +49,8 @@ export function ChatInterface() {
   const [sending, setSending] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const messagesContainerRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
   const { markAsSeen, checkForUpdates } = useMessageNotifications()
   const [translatedMessages, setTranslatedMessages] = useState<Record<string, string>>({})
   const [translatedReplies, setTranslatedReplies] = useState<Record<string, string>>({})
@@ -67,6 +69,44 @@ export function ChatInterface() {
   const [hasMoreMessages, setHasMoreMessages] = useState(false)
   const [loadingMore, setLoadingMore] = useState(false)
   const [isUserAtTop, setIsUserAtTop] = useState(false)
+  const [keyboardHeight, setKeyboardHeight] = useState(0)
+
+  // Handle iOS/Android keyboard appearance using visualViewport API
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+
+    const handleViewportResize = () => {
+      if (window.visualViewport) {
+        const viewportHeight = window.visualViewport.height
+        const windowHeight = window.innerHeight
+        const keyboardH = windowHeight - viewportHeight
+        
+        // Only set keyboard height if it's significant (> 100px indicates keyboard)
+        if (keyboardH > 100) {
+          setKeyboardHeight(keyboardH)
+          // Scroll to bottom when keyboard opens
+          setTimeout(() => {
+            messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+          }, 100)
+        } else {
+          setKeyboardHeight(0)
+        }
+      }
+    }
+
+    // Use visualViewport API for better keyboard detection
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', handleViewportResize)
+      window.visualViewport.addEventListener('scroll', handleViewportResize)
+    }
+
+    return () => {
+      if (window.visualViewport) {
+        window.visualViewport.removeEventListener('resize', handleViewportResize)
+        window.visualViewport.removeEventListener('scroll', handleViewportResize)
+      }
+    }
+  }, [])
 
   const translateMessage = async (messageId: string, text: string) => {
     const isReply = messageId.startsWith('reply-')
@@ -776,18 +816,22 @@ export function ChatInterface() {
   }
 
   return (
-    <div className="flex h-full flex-col">
+    <div 
+      ref={containerRef}
+      className="flex h-full flex-col pb-[calc(5rem+var(--safe-area-inset-bottom))] sm:pb-0"
+      style={keyboardHeight > 0 ? { paddingBottom: `${keyboardHeight}px` } : undefined}
+    >
       {/* Header */}
       <div className="flex-shrink-0 border-b border-border bg-card p-3 sm:p-4">
         <div className="mx-auto flex max-w-2xl items-center gap-3">
-          <Avatar>
+          <Avatar className="h-10 w-10 flex-shrink-0">
             {adminProfilePicture && <AvatarImage src={adminProfilePicture} />}
             <AvatarFallback className="bg-primary text-primary-foreground">
               {trainerFirstName ? trainerFirstName.charAt(0).toUpperCase() : "C"}
             </AvatarFallback>
           </Avatar>
-          <div>
-            <h1 className="font-semibold text-foreground">
+          <div className="min-w-0">
+            <h1 className="font-semibold text-foreground truncate">
               {trainerFirstName ? `Coach ${trainerFirstName}` : "Coach"}
             </h1>
             <p className="text-xs text-muted-foreground">{t("chat.online")}</p>
@@ -796,7 +840,11 @@ export function ChatInterface() {
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-3 sm:p-4 min-h-0" ref={messagesContainerRef}>
+      <div 
+        className="flex-1 overflow-y-auto p-3 sm:p-4 min-h-0 overscroll-contain" 
+        ref={messagesContainerRef}
+        style={{ WebkitOverflowScrolling: 'touch' }}
+      >
         <div className="mx-auto max-w-2xl space-y-3 sm:space-y-4">
           {loading ? (
             <div className="flex items-center justify-center h-full">
@@ -978,20 +1026,24 @@ export function ChatInterface() {
       </div>
 
       {/* Input */}
-      <div className="flex-shrink-0 border-t border-border bg-card p-3 sm:p-4 pb-24">
+      <div className="flex-shrink-0 border-t border-border bg-card p-3 sm:p-4">
         <div className="mx-auto flex max-w-2xl gap-2">
           <Input
+            ref={inputRef}
             value={newMessage}
             onChange={(e) => setNewMessage(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && handleSendMessage()}
             placeholder={t("chat.typeMessage")}
-            className="flex-1 bg-background"
+            className="flex-1 bg-background h-11 text-base"
+            autoComplete="off"
+            autoCorrect="on"
+            enterKeyHint="send"
           />
           <Button
             onClick={handleSendMessage}
             size="icon"
             disabled={!newMessage.trim() || sending}
-            className="bg-primary text-primary-foreground hover:bg-primary/90"
+            className="bg-primary text-primary-foreground hover:bg-primary/90 h-11 w-11 flex-shrink-0"
           >
             {sending ? (
               <Loader2 className="h-4 w-4 animate-spin" />
